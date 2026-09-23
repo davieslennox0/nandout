@@ -20,10 +20,10 @@ export default function CircuitsPage() {
         <a href="/build">Build</a>; no admin approves them.
       </p>
       {!deployed && <NotDeployed what="The circuit registry" />}
-      {error && <div className="empty error">{error.message.split('\n')[0]}</div>}
-      {deployed && !isLoading && filters.length === 0 && <div className="empty">No filters registered yet.</div>}
+      {error && <div className="bar warn">{error.message.split('\n')[0]}</div>}
+      {deployed && !isLoading && filters.length === 0 && <div className="card empty">No filters registered yet.</div>}
       {filters.length > 0 && (
-        <div className="scroll">
+        <div className="table-wrap" style={{ marginTop: 24 }}>
           <table>
             <thead>
               <tr><th>#</th><th>Name</th><th>Kind</th><th>Transistors</th><th>Unlatched now</th><th>TapeOut circuit</th><th>Registrant</th></tr>
@@ -58,7 +58,8 @@ function useUnlatchedCounts(filters: FilterInfo[]) {
     (async () => {
       const r = await fetch('/api/launches');
       if (!r.ok) return;
-      const { tokens } = (await r.json()) as { tokens: `0x${string}`[] };
+      const { rows } = (await r.json()) as { rows: { t: `0x${string}` }[] };
+      const tokens = rows.map((x) => x.t);
       for (const f of filters) {
         let n = 0;
         try {

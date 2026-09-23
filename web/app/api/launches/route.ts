@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server';
-import { fetchLaunches } from '@/lib/ignix';
+import { fetchLaunches, rank, toRow } from '@/lib/ignix';
 
 export const revalidate = 60;
 
-/** Token addresses of every Ignix launch (server-side proxy of the public index, cached 60 s). */
+/** Every Ignix launch as compact rows, ranked (graduated, agent-linked, most holders first). Cached 60 s. */
 export async function GET() {
   try {
-    const launches = await fetchLaunches();
-    return NextResponse.json({ tokens: launches.map((l) => l.tokenAddress), symbols: Object.fromEntries(launches.map((l) => [l.tokenAddress, l.symbol])) });
+    const rows = rank(await fetchLaunches()).map(toRow);
+    return NextResponse.json({ rows }, { headers: { 'cache-control': 'public, max-age=60, stale-while-revalidate=120' } });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 502 });
   }

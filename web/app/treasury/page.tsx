@@ -41,12 +41,12 @@ function Holdings() {
   return (
     <>
       <div className="stats">
-        <div className="stat"><b>{feeBps.data !== undefined ? `${feeBps.data / 100}%` : '…'}</b><span>lock fee (immutable)</span></div>
-        <div className="stat"><b>{n}</b><span>locks created</span></div>
-        <div className="stat"><b>{tokens.length}</b><span>tokens held</span></div>
+        <div><b>{feeBps.data !== undefined ? `${feeBps.data / 100}%` : '…'}</b><span>lock fee (immutable)</span></div>
+        <div><b>{n}</b><span>locks created</span></div>
+        <div><b>{tokens.length}</b><span>tokens held</span></div>
       </div>
       {t && <p className="small">Treasury: <a className="mono" href={`${EXPLORER}/address/${t}`}>{t}</a></p>}
-      {n === 0 && !count.isLoading && <div className="empty">No locks yet, so no fees collected.</div>}
+      {n === 0 && !count.isLoading && <div className="card empty" style={{ marginTop: 20 }}>No locks yet, so no fees collected.</div>}
       {tokens.length > 0 && (
         <table>
           <thead><tr><th>Token</th><th>Balance</th></tr></thead>

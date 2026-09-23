@@ -84,9 +84,9 @@ function CreateLock() {
   }
 
   return (
-    <div className="panel" style={{ marginTop: '1.5rem' }}>
-      <h2 style={{ marginTop: 0 }}>New lock</h2>
-      <div className="grid two">
+    <div className="card" style={{ marginTop: 28 }}>
+      <h3>New lock</h3>
+      <div className="grid g2">
         <div>
           <label>Token</label>
           <input className="mono" placeholder="0x…" value={token} onChange={(e) => setToken(e.target.value.trim())} />
@@ -106,24 +106,24 @@ function CreateLock() {
               </select>
               <input className="mono" style={{ flex: 1 }} value={t.pct} onChange={(e) => setTranches(tranches.map((x, j) => (j === i ? { ...x, pct: e.target.value } : x)))} />
               <span className="muted">%</span>
-              {tranches.length > 1 && <button className="btn ghost small" onClick={() => setTranches(tranches.filter((_, j) => j !== i))}>×</button>}
+              {tranches.length > 1 && <button className="ghost small" onClick={() => setTranches(tranches.filter((_, j) => j !== i))}>×</button>}
             </div>
           ))}
-          {tranches.length < 8 && <button className="btn ghost small" onClick={() => setTranches([...tranches, { filterId: 0, pct: '0' }])}>+ tranche</button>}
+          {tranches.length < 8 && <button className="ghost small" onClick={() => setTranches([...tranches, { filterId: 0, pct: '0' }])}>+ tranche</button>}
           {bpsSum !== 10_000 && <p className="error small">Tranches sum to {bpsSum / 100}%.</p>}
         </div>
       </div>
       {raw !== undefined && fee !== undefined && bps !== undefined && (
-        <p className="mono" style={{ marginTop: '1rem' }}>
+        <div className="fee-line">
           Lock {fmt(raw, d)} → {fmt(raw - fee, d)} locked, {fmt(fee, d)} fee ({Number(bps) / 100}%)
-        </p>
+        </div>
       )}
       <p className="muted small">
         The fee is taken from what the contract actually receives, so tokens with a transfer tax lock slightly less than shown.
       </p>
       <div className="row">
-        <button className="btn" disabled={!valid || !address} onClick={submit}>Approve & lock</button>
-        {status && <span className="small mono">{status}</span>}
+        <button className="primary" disabled={!valid || !address} onClick={submit}>Approve & lock</button>
+        {status && <span className="small muted mono">{status}</span>}
       </div>
     </div>
   );
@@ -139,9 +139,9 @@ function MyLocks() {
   });
   return (
     <>
-      <h2>Your claims</h2>
-      {!address && <div className="empty">Connect a wallet to see locks where you are the beneficiary.</div>}
-      {address && list.length === 0 && !ids.isLoading && <div className="empty">No locks name this wallet as beneficiary.</div>}
+      <div className="section-label">Your claims<span>locks where this wallet is the beneficiary</span></div>
+      {!address && <div className="card empty">Connect a wallet to see locks where you are the beneficiary.</div>}
+      {address && list.length === 0 && !ids.isLoading && <div className="card empty">No locks name this wallet as beneficiary.</div>}
       {(locks.data ?? []).map((r, i) =>
         r.status === 'success' ? <LockCard key={String(list[i])} id={list[i]} lock={r.result[0]} tranches={r.result[1]} /> : null,
       )}
@@ -170,8 +170,8 @@ function LockCard({ id, lock, tranches }: {
     }
   }
   return (
-    <div className="panel" style={{ marginBottom: '0.75rem' }}>
-      <div className="row"><b>Lock #{id.toString()}</b><span className="mono muted small">token {short(lock.token)} · from {short(lock.depositor)}</span></div>
+    <div className="card" style={{ marginBottom: '0.75rem' }}>
+      <div className="row"><h3 style={{ margin: 0 }}>Lock #{id.toString()}</h3><span className="mono muted">token {short(lock.token)} · from {short(lock.depositor)}</span></div>
       <table>
         <thead><tr><th>Tranche</th><th>Unlock filter</th><th>Amount</th><th>Circuit</th><th /></tr></thead>
         <tbody>
@@ -183,8 +183,8 @@ function LockCard({ id, lock, tranches }: {
                 <td>{i}</td>
                 <td>#{t.filterId.toString()} · {t.bps / 100}%</td>
                 <td className="mono">{t.amount.toString()}</td>
-                <td>{t.released ? <span className="muted">released</span> : pass === undefined ? <span className="muted">{c?.status === 'failure' ? 'feed stale' : '…'}</span> : pass ? <span className="state-unlatched">passes</span> : <span className="state-latched">latched</span>}</td>
-                <td>{!t.released && <button className="btn small" disabled={!pass} onClick={() => release(i)}>Release</button>}</td>
+                <td>{t.released ? <span className="muted">released</span> : pass === undefined ? <span className="muted">{c?.status === 'failure' ? 'feed stale' : '…'}</span> : pass ? <span className="unlatched">passes</span> : <span className="latched">latched</span>}</td>
+                <td>{!t.released && <button className="primary small" disabled={!pass} onClick={() => release(i)}>Release</button>}</td>
               </tr>
             );
           })}

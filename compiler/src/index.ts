@@ -8,6 +8,7 @@ export * from './bits.ts';
 export * from './dsl.ts';
 export * from './netlist.ts';
 export { lower } from './lower.ts';
+export { STARTERS } from './starters.ts';
 
 export interface Compiled {
   name: string;

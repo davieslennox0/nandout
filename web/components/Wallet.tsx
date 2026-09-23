@@ -14,21 +14,22 @@ export function Wallet() {
   if (!isConnected) {
     const c = connectors[0];
     return (
-      <button className="btn" disabled={!c || isPending} onClick={() => c && connect({ connector: c, chainId: xLayer.id })}>
+      <button className="primary small" disabled={!c || isPending} onClick={() => c && connect({ connector: c, chainId: xLayer.id })}>
         {isPending ? 'Connecting…' : 'Connect wallet'}
       </button>
     );
   }
   if (chainId !== xLayer.id) {
     return (
-      <button className="btn warn" onClick={() => switchChain({ chainId: xLayer.id })}>
+      <button className="warn small" onClick={() => switchChain({ chainId: xLayer.id })}>
         Switch to X Layer
       </button>
     );
   }
   return (
-    <button className="btn ghost mono" title="Disconnect" onClick={() => disconnect()}>
-      {short(address)}
+    <button className="small" title="Disconnect" onClick={() => disconnect()}>
+      <span className="dot" />
+      <span className="mono">{short(address)}</span>
     </button>
   );
 }

@@ -47,13 +47,13 @@ export default function BuildPage() {
         Nandout processor and mints the circuit as an NFT; registering it makes it a LatchGate filter anyone can call.
       </p>
 
-      <h2>Conditions</h2>
+      <div className="section-label">Conditions<span>must / must not / any of</span></div>
       <div className="bit-grid">
         {BIT_NAMES.map((b) => (
           <div key={b} className="bit-toggle" title={b}>
             <span>
               {BIT_LABELS[b]}
-              {isOnchain(b) && <span className="pill chain" style={{ marginLeft: 6 }}>on-chain</span>}
+              {isOnchain(b) && <span className="chip" style={{ marginLeft: 6 }}>on-chain</span>}
             </span>
             <select value={modes[b]} onChange={(e) => { setRaw(null); setModes({ ...modes, [b]: e.target.value as Mode }); }}>
               <option value="off">—</option>
@@ -65,7 +65,7 @@ export default function BuildPage() {
         ))}
       </div>
 
-      <h2>Rule (DSL)</h2>
+      <div className="section-label">Rule<span>the exact DSL that gets compiled</span></div>
       <p className="muted small">
         Edit directly for nested rules or a sticky latch: <code>{'{"latch":{"set":…,"reset":…}}'}</code>.
       </p>
@@ -73,9 +73,9 @@ export default function BuildPage() {
       <label>Name</label>
       <input className="mono" value={name} onChange={(e) => setName(e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, '_'))} />
 
-      <h2>Circuit</h2>
-      {!result && <div className="empty">No conditions yet.</div>}
-      {result && !result.ok && <div className="empty error">{result.error}</div>}
+      <div className="section-label">Circuit<span>compiled in your browser</span></div>
+      {!result && <div className="card empty">Pick at least one condition.</div>}
+      {result && !result.ok && <div className="bar warn">{result.error}</div>}
       {result?.ok && <CircuitPreview c={result.c} />}
     </>
   );
@@ -83,10 +83,10 @@ export default function BuildPage() {
 
 function CircuitPreview({ c }: { c: ReturnType<typeof compile> }) {
   return (
-    <div className="grid two">
-      <div className="panel">
-        <div className="row"><span className="state-unlatched">✓ verified</span><span className="muted small">against all 65,536 inputs{c.nState ? ' × 2 latch states' : ''}</span></div>
-        <p className="mono">{c.infix}</p>
+    <div className="grid g2">
+      <div className="card">
+        <div className="row"><span className="chip green">Verified</span><span className="muted small">against all 65,536 inputs{c.nState ? ' × 2 latch states' : ''}</span></div>
+        <p className="mono" style={{ margin: '12px 0 4px', color: 'var(--accent)' }}>{c.infix}</p>
         <table>
           <tbody>
             <tr><td className="muted">Transistors burned</td><td className="mono">{c.nandCount} NAND{c.latchCount ? ` + ${c.latchCount} LATCH` : ''}</td></tr>
@@ -123,7 +123,7 @@ function TapeOut({ c }: { c: ReturnType<typeof compile> }) {
     query: { enabled: Boolean(t) },
   });
 
-  if (!DEPLOYMENT.processor || !DEPLOYMENT.gate) return <div className="panel"><NotDeployed what="Tape-out from this page" /></div>;
+  if (!DEPLOYMENT.processor || !DEPLOYMENT.gate) return <div className="card"><NotDeployed what="Tape-out from this page" /></div>;
   const [price, protoFee, tapeFee, cap, minted] = (info.data ?? []).map((r) => (r.status === 'success' ? (r.result as bigint) : undefined));
   const mints = (c.nandCount > 0 ? 1n : 0n) + (c.latchCount > 0 ? 1n : 0n);
   const cost = price !== undefined && protoFee !== undefined && tapeFee !== undefined ? price * BigInt(c.gateCount) + protoFee * mints + tapeFee : undefined;
@@ -158,7 +158,7 @@ function TapeOut({ c }: { c: ReturnType<typeof compile> }) {
   }
 
   return (
-    <div className="panel">
+    <div className="card">
       <table>
         <tbody>
           <tr><td className="muted">Transistor price</td><td className="mono">{price !== undefined ? `${formatEther(price)} OKB` : '…'}</td></tr>
@@ -168,12 +168,12 @@ function TapeOut({ c }: { c: ReturnType<typeof compile> }) {
         </tbody>
       </table>
       <div className="row" style={{ marginTop: '0.8rem' }}>
-        <button className="btn" disabled={!address || busy || cost === undefined || (left !== undefined && left < BigInt(c.gateCount))} onClick={run}>
+        <button className="primary" disabled={!address || busy || cost === undefined || (left !== undefined && left < BigInt(c.gateCount))} onClick={run}>
           {busy ? 'Working…' : 'Mint, tape out & register'}
         </button>
         {!address && <span className="muted small">Connect a wallet first.</span>}
       </div>
-      {log.length > 0 && <pre>{log.join('\n')}</pre>}
+      {log.length > 0 && <pre className="log">{log.join('\n')}</pre>}
       <p className="muted small">Processor: <a href={`${EXPLORER}/address/${DEPLOYMENT.processor}`}>{DEPLOYMENT.processor}</a></p>
     </div>
   );
