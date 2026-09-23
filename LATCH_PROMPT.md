@@ -186,3 +186,13 @@ Start with Phase 0 now.
 - LatchLock's release path calls LatchEvaluator ONLY. LatchGate.check still calls TapeOut live eval; LatchGate.checkLocal calls LatchEvaluator.
 - README "Trust model": name the deployed LatchEvaluator address as the sealed custody path, contrasted with TapeOut factory isSealed() == false.
 - Keep test coverage: the malicious-upgrade test must still prove no funds move.
+
+## 22. Approved processor params (supersedes §21)
+- Supply / cap: 500,000 transistors.
+- Unit price: 0.001 OKB per transistor (NOT 0.0001).
+- Arithmetic for ECONOMICS.md (record date 2026-09-23, OKB ~ $115, sources spread $110-121):
+  target ~$1 per 10-gate filter -> $0.10/transistor -> 0.10 / 115 = 0.00087 OKB -> round to 0.001 OKB.
+  10-gate filter = 0.01 OKB (~$1.15), 7.7x TapeOut's 0.0013 OKB tape-out fee.
+  STRICT (13 gates) = 0.013 OKB (~$1.50). Lifetime supply value = 100 OKB (~$11,500).
+- State in ECONOMICS.md that price is fixed at deploy and OKB volatility moves the USD cost; the $1-3 band holds across the recent OKB range.
+- FINAL: supply/cap 500,000 @ 0.001 OKB. 10-gate filter = 0.01 OKB (~$1.15); STRICT (13 gates) = 0.013 OKB (~$1.50). Gate ceiling 500,000 leaves headroom for large composite circuits (Behemoth-scale is 2,300 gates). Lifetime supply value 500 OKB.
