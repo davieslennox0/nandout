@@ -12,3 +12,6 @@ broadcast/
 attestor/logs/
 contracts/lib/
 contracts/deployments/1960.json
+
+# ~/.gitignore_global ignores build/; this one is the /build page, not output
+!web/app/build/
