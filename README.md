@@ -136,6 +136,16 @@ with wide `eth_getLogs` ranges (`LOG_RPC_URL`), so the attestor doesn't depend o
 Incremental cycles fetch only new blocks (seconds). The index is checked against on-chain `balanceOf`
 (`tsx src/verify-index.ts`: 0 mismatches in 272 checks on the first run).
 
+## Build & deploy
+
+Everything runs on our own server; builds run in GitHub Actions (`.github/workflows/ci.yml`):
+
+- Every push and PR runs compiler/attestor/agent tests, `forge test`, and the X Layer mainnet fork test.
+- On `main`, the web app is built as a Next.js standalone bundle and published to the rolling `web-latest` release.
+- The server pulls it with `deploy/pull-web.sh` (cron, every 5 min): versioned directories under `/srv/nandout/releases`,
+  pm2 process `nandout-web` on `127.0.0.1:8440`, Caddy serves https://nandout.xyz. GitHub never gets access to the server.
+- Contract addresses reach the frontend as repository variables (`NEXT_PUBLIC_LATCH_*`) at build time.
+
 ## Develop
 
 ```sh
