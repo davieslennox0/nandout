@@ -13,6 +13,7 @@ export const BITS = {
   AGE_GE_30D: 9,
   HOLDERS_GE_100: 10,
   HOLDERS_GE_300: 11,
+  LP_PULLED: 12, // graduated pair whose recognised-locker LP share fell below threshold (reset signal)
 } as const;
 
 export type BitName = keyof typeof BITS;
@@ -29,7 +30,7 @@ export const ATTESTED_MASK = (Object.keys(BITS) as BitName[])
 
 export const ONCHAIN_MASK = ONCHAIN_BITS.reduce((m, b) => m | (1 << BITS[b]), 0);
 
-export const RESERVED_MASK = 0xf000;
+export const RESERVED_MASK = 0xe000;
 
 export function isBitName(s: string): s is BitName {
   return Object.prototype.hasOwnProperty.call(BITS, s);

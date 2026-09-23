@@ -48,13 +48,13 @@ abstract contract Base is Test {
         assertEq(address(gate), predictedGate);
 
         string memory json = vm.readFile("test/fixtures/circuits.json");
-        for (uint256 i = 0; i < 5; i++) {
+        for (uint256 i = 0; i < 6; i++) {
             string memory p = string.concat(".circuits[", vm.toString(i), "]");
             string memory name = vm.parseJsonString(json, string.concat(p, ".name"));
             bytes memory nl = vm.parseJsonBytes(json, string.concat(p, ".netlist"));
             bytes32 h = vm.parseJsonBytes32(json, string.concat(p, ".netlistHash"));
             filterId[name] = _tapeAndRegister(nl, name, h);
-            starterNames.push(name);
+            if (vm.parseJsonUint(json, string.concat(p, ".nState")) == 0) starterNames.push(name);
         }
         string memory sj = vm.readFile("test/fixtures/sticky_test.json");
         filterId["STICKY_TEST"] =

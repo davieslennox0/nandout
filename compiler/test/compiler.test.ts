@@ -8,7 +8,7 @@ import { STARTERS } from '../src/starters.ts';
 test('all starter circuits compile and verify exhaustively', () => {
   for (const [name, dsl] of Object.entries(STARTERS)) {
     const c = compile(name, dsl);
-    assert.equal(c.nState, 0, name);
+    assert.equal(c.nState, name.startsWith('STICKY') ? 1 : 0, name);
     assert.ok(c.gateCount > 0 && c.gateCount < 40, `${name}: ${c.gateCount} gates`);
   }
 });

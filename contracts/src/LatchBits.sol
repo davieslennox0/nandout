@@ -17,9 +17,10 @@ library LatchBits {
     uint16 internal constant AGE_GE_30D = 1 << 9; // on-chain
     uint16 internal constant HOLDERS_GE_100 = 1 << 10;
     uint16 internal constant HOLDERS_GE_300 = 1 << 11;
+    uint16 internal constant LP_PULLED = 1 << 12; // graduated pair, recognised-locker LP share fell below threshold
 
     uint16 internal constant ONCHAIN_MASK = LATCH_LOCKED | AGE_GE_7D | AGE_GE_30D;
-    uint16 internal constant RESERVED_MASK = 0xF000;
+    uint16 internal constant RESERVED_MASK = 0xE000;
     uint16 internal constant ATTESTED_MASK = ~(ONCHAIN_MASK | RESERVED_MASK);
 
     uint32 internal constant N_IN = 16;

@@ -15,6 +15,7 @@ contract LatchFeedTest is Base {
         assertEq(vm.parseJsonUint(json, ".onchainMask"), LatchBits.ONCHAIN_MASK);
         assertEq(vm.parseJsonUint(json, ".bits.LATCH_LOCKED"), 7);
         assertEq(vm.parseJsonUint(json, ".bits.HOLDERS_GE_300"), 11);
+        assertEq(vm.parseJsonUint(json, ".bits.LP_PULLED"), 12);
     }
 
     function test_onlyAttestorPosts() public {

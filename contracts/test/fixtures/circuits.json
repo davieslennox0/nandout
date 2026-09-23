@@ -11,9 +11,10 @@
     "AGE_GE_7D": 8,
     "AGE_GE_30D": 9,
     "HOLDERS_GE_100": 10,
-    "HOLDERS_GE_300": 11
+    "HOLDERS_GE_300": 11,
+    "LP_PULLED": 12
   },
-  "attestedMask": 3199,
+  "attestedMask": 7295,
   "onchainMask": 896,
   "circuits": [
     {
@@ -143,6 +144,42 @@
       "estEvalGas": {
         "tx": 64800,
         "internalCall": 43800
+      }
+    },
+    {
+      "name": "STICKY_SAFETY",
+      "kind": "latch",
+      "dsl": {
+        "latch": {
+          "set": {
+            "all": [
+              "TOP10_LT_40",
+              "DEV_NO_SELL_7D",
+              "HOLDERS_GE_100"
+            ]
+          },
+          "reset": {
+            "any": [
+              {
+                "not": "DEV_NO_SELL_7D"
+              },
+              "LP_PULLED"
+            ]
+          }
+        }
+      },
+      "infix": "SET (TOP10_LT_40 AND DEV_NO_SELL_7D AND HOLDERS_GE_100) / RESET (NOT DEV_NO_SELL_7D OR LP_PULLED)",
+      "nIn": 16,
+      "nOut": 1,
+      "nState": 1,
+      "gateCount": 11,
+      "nandCount": 10,
+      "latchCount": 1,
+      "netlist": "0x0100001c0000000e00000e0000000800001300000006000008000000150000150000000c0000160000001200001200000017000018000000140000140000001900001a0000001b00001b",
+      "netlistHash": "0x317795ded2eb45beaf9922c7fcf7d4c2974cc726d59dd9c9cb56d3072f49e7b0",
+      "estEvalGas": {
+        "tx": 76300,
+        "internalCall": 55300
       }
     }
   ]

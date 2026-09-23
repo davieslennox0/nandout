@@ -14,7 +14,7 @@ contract LatchGateTest is Base {
     // ------------------------------------------------------------------ registration
 
     function test_startersRegistered() public view {
-        assertEq(gate.filterCount(), 6);
+        assertEq(gate.filterCount(), 7);
         LatchGate.Filter memory f = gate.getFilter(filterId["STRICT"]);
         assertEq(f.nState, 0);
         assertGt(f.gateCount, 0);
@@ -272,6 +272,23 @@ contract LatchGateTest is Base {
         (bool a, bool b,) = gate.verify(token, id);
         assertTrue(a);
         assertTrue(b);
+    }
+
+    function test_stickySafety_starter() public {
+        uint256 id = filterId["STICKY_SAFETY"]; // set: TOP10_LT_40 & DEV_NO_SELL_7D & HOLDERS_GE_100
+        uint16 curve = LatchBits.TOP10_LT_40 | LatchBits.DEV_NO_SELL_7D | LatchBits.HOLDERS_GE_100;
+        _post(token, curve);
+        assertTrue(_advance(id));
+        _post(token, LatchBits.DEV_NO_SELL_7D); // holders drop, concentration rises: still trusted
+        assertTrue(_advance(id));
+        _post(token, curve | LatchBits.LP_PULLED); // LP pulled wins even while curve conditions hold
+        assertFalse(_advance(id));
+        _post(token, LatchBits.DEV_NO_SELL_7D);
+        assertFalse(_advance(id));
+        _post(token, curve); // must earn it again
+        assertTrue(_advance(id));
+        _post(token, curve & ~LatchBits.DEV_NO_SELL_7D); // dev sold
+        assertFalse(_advance(id));
     }
 
     function _advance(uint256 id) internal returns (bool) {
