@@ -26,12 +26,31 @@ Free to check, pay to create.
 
 Research on TapeOut, Ignix and X Layer: [`docs/RECON.md`](docs/RECON.md).
 
+## Deployed on X Layer mainnet (chainId 196)
+
+All four Latch contracts are verified on OKLink. Deployed 2026-09-23 at block 71,426,236 from
+[`0x934d…b816`](https://www.oklink.com/xlayer/address/0x934d315C0a9C0866D393B722C1805F2B6b20b816) (`contracts/deployments/196.json`).
+
+| Contract | Address |
+|---|---|
+| LatchEvaluator | [`0x8cA3ecB418962801e64FF1e847a444fAB6352D03`](https://www.oklink.com/xlayer/address/0x8cA3ecB418962801e64FF1e847a444fAB6352D03) |
+| LatchFeed | [`0x81Ea55c0d48fB985707eA224dC099Ff3C8f2AD78`](https://www.oklink.com/xlayer/address/0x81Ea55c0d48fB985707eA224dC099Ff3C8f2AD78) |
+| LatchLock | [`0xBe9ae981ec742B9053AD802a1D6A2B96E58b67f1`](https://www.oklink.com/xlayer/address/0xBe9ae981ec742B9053AD802a1D6A2B96E58b67f1) |
+| LatchGate | [`0x649373f612d278634Ba8656aF53bCA7D8dc0f940`](https://www.oklink.com/xlayer/address/0x649373f612d278634Ba8656aF53bCA7D8dc0f940) |
+| Nandout processor (TapeOut Circuits) | [`0x8A60B4A4BCf4066F5E5F9A406fE09c5e4f52a58E`](https://www.oklink.com/xlayer/address/0x8A60B4A4BCf4066F5E5F9A406fE09c5e4f52a58E) |
+| Nandout transistors (ERC-1155) | [`0xa5eCCEd599470f97781E3Bc10D7a380F96996aF6`](https://www.oklink.com/xlayer/address/0xa5eCCEd599470f97781E3Bc10D7a380F96996aF6) |
+| Treasury (lock fees) | [`0x55116d8451Cd5326a9C1340a346BFA8604cDde58`](https://www.oklink.com/xlayer/address/0x55116d8451Cd5326a9C1340a346BFA8604cDde58) |
+| Attestor | [`0xdb42fC720Af0119c9e248A0c31F3017cE0837100`](https://www.oklink.com/xlayer/address/0xdb42fC720Af0119c9e248A0c31F3017cE0837100) |
+
+Processor: 500,000 transistors at 0.001 OKB, created through TapeOut's factory (`isCPU` = true). Filters: 1 `BASIC_SAFETY`,
+2 `REVENUE_AGENTS`, 3 `STRICT`, 4 `UNLOCK_T1`, 5 `UNLOCK_T2`, 6 `STICKY_SAFETY` (latch).
+
 ## Trust model
 
 | Component | Upgradeable? | Who can change it |
 |---|---|---|
 | TapeOut `CircuitFactory` + beacons (`0x1f09…0761`) | **Yes**: `isSealed() == false` | TapeOut owner EOA `0x571d…aF15` can upgrade `eval` for every processor |
-| **`LatchEvaluator`** (address: _set at deploy_) | **No** | Nobody. No storage, no owner, no proxy, no selfdestruct, view-only |
+| **`LatchEvaluator`** ([`0x8cA3…2D03`](https://www.oklink.com/xlayer/address/0x8cA3ecB418962801e64FF1e847a444fAB6352D03)) | **No** | Nobody. No storage, no owner, no proxy, no selfdestruct, view-only |
 | `LatchLock`, `LatchGate` | No | Nobody. Immutable, ownerless |
 | `LatchFeed` | No (code) | Owner can only add/remove attestors |
 
