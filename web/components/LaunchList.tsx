@@ -132,7 +132,6 @@ export function LaunchList({ initial, total }: { initial: Row[]; total: number }
           );
         })}
         {visible.length === 0 && <div className="empty">{needFull && !full ? 'Loading the full index…' : 'No launches match.'}</div>}
-      </div>
       <div className="list-foot">
         <span>
           Showing {visible.length.toLocaleString()} of {(full ? filtered.length : total).toLocaleString()} launches · graduated,
@@ -143,6 +142,7 @@ export function LaunchList({ initial, total }: { initial: Row[]; total: number }
             Show {SIZES.find((n) => n > size) ? `${SIZES.find((n) => n > size)}` : 'all'}
           </button>
         )}
+      </div>
       </div>
     </>
   );
