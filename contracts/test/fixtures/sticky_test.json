@@ -1,0 +1,30 @@
+{
+  "name": "STICKY_TEST",
+  "kind": "latch",
+  "dsl": {
+    "latch": {
+      "set": {
+        "all": [
+          "LP_LOCKED",
+          "TOP10_LT_40"
+        ]
+      },
+      "reset": {
+        "not": "DEV_NO_SELL_7D"
+      }
+    }
+  },
+  "infix": "SET (LP_LOCKED AND TOP10_LT_40) / RESET NOT DEV_NO_SELL_7D",
+  "nIn": 16,
+  "nOut": 1,
+  "nState": 1,
+  "gateCount": 8,
+  "nandCount": 7,
+  "latchCount": 1,
+  "netlist": "0x0100001900000008000008000000050000060000001200001200000014000015000000130000130000001600001700000018000018",
+  "netlistHash": "0x8267ea989b8f8f2a3e28a30263f6820d1b443f2d373f02d8ece2e41687ac268b",
+  "estEvalGas": {
+    "tx": 69400,
+    "internalCall": 48400
+  }
+}
