@@ -5,7 +5,7 @@ import {Base} from "./Base.t.sol";
 import {LatchLock} from "../src/LatchLock.sol";
 import {LatchGate} from "../src/LatchGate.sol";
 import {LatchBits} from "../src/LatchBits.sol";
-import {ILatchGate} from "../src/interfaces/ILatch.sol";
+import {ILatchEvaluator, ILatchGate} from "../src/interfaces/ILatch.sol";
 import {MockERC20, FeeOnTransferToken, ReentrantToken, IReenterTarget} from "./mocks/Tokens.sol";
 
 contract LatchLockTest is Base {
@@ -42,11 +42,14 @@ contract LatchLockTest is Base {
 
     function test_constructorBounds() public {
         vm.expectRevert(LatchLock.FeeTooHigh.selector);
-        new LatchLock(ILatchGate(address(gate)), treasury, 101, 500);
+        new LatchLock(ILatchGate(address(gate)), evaluator, treasury, 101, 500);
         vm.expectRevert(LatchLock.ZeroAddress.selector);
-        new LatchLock(ILatchGate(address(gate)), address(0), 50, 500);
+        new LatchLock(ILatchGate(address(gate)), evaluator, address(0), 50, 500);
+        vm.expectRevert(LatchLock.ZeroAddress.selector);
+        new LatchLock(ILatchGate(address(gate)), ILatchEvaluator(address(0)), treasury, 50, 500);
         vm.expectRevert(LatchLock.BadConfig.selector);
-        new LatchLock(ILatchGate(address(gate)), treasury, 50, 0);
+        new LatchLock(ILatchGate(address(gate)), evaluator, treasury, 50, 0);
+        assertEq(address(lock.evaluator()), address(gate.evaluator()));
     }
 
     // ------------------------------------------------------------------ create
@@ -181,7 +184,7 @@ contract LatchLockTest is Base {
         uint256 id = _create(1_000_000e18);
         _passT1();
         vm.warp(block.timestamp + MAX_AGE + 1);
-        vm.expectRevert(LatchGate.FeedStale.selector);
+        vm.expectRevert(LatchLock.FeedStale.selector);
         lock.release(id, 0);
     }
 
@@ -194,6 +197,18 @@ contract LatchLockTest is Base {
         assertTrue(live, "live path is fooled");
         vm.expectRevert(abi.encodeWithSelector(LatchLock.StillLatched.selector, uint16(0)));
         lock.release(id, 0);
+    }
+
+    /// Release never touches TapeOut: it still works while TapeOut's live eval is malicious and gas-bombing.
+    function test_release_independentOfTapeOut() public {
+        uint256 id = _create(1_000_000e18);
+        tapeout.setEvil(true);
+        tapeout.setGasBomb(true);
+        vm.expectRevert(abi.encodeWithSelector(LatchLock.StillLatched.selector, uint16(0)));
+        lock.release(id, 0);
+        _passT1();
+        assertEq(lock.release(id, 0), 398_000e18);
+        assertEq(token.balanceOf(beneficiary), 398_000e18);
     }
 
     function test_release_unknownLockAndTranche() public {

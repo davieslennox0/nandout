@@ -4,13 +4,14 @@ pragma solidity ^0.8.24;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {ILatchGate, ILatchLock} from "./interfaces/ILatch.sol";
+import {ILatchEvaluator, ILatchGate, ILatchLock} from "./interfaces/ILatch.sol";
 
 /// @title LatchLock — creator allocations released only when an unlock circuit passes.
 /// @notice Trust guarantee: after `createLock` nothing about a lock can change. There is no owner, no admin
 ///         withdraw, no pause, no circuit swap and no upgrade path. Tranches release only to the beneficiary,
-///         only when `LatchGate.checkLocal` passes, i.e. against the netlist snapshotted at filter registration
-///         (independent of TapeOut upgrades). Anyone may trigger a release.
+///         only when its unlock circuit passes. The circuit is evaluated by LatchEvaluator (sealed: no owner, no
+///         storage, no upgrade path) on the netlist snapshotted at filter registration, never by TapeOut's upgradeable
+///         contracts. Inputs come from LatchGate.inputs (ownerless). Anyone may trigger a release.
 ///
 ///         Fee: `feeBps` of the amount actually received, paid in kind to `treasury` at creation. Both immutable.
 ///
@@ -48,6 +49,7 @@ contract LatchLock is ILatchLock, ReentrancyGuard {
     }
 
     ILatchGate public immutable gate;
+    ILatchEvaluator public immutable evaluator;
     address public immutable treasury;
     uint16 public immutable feeBps;
     /// @notice Share of total supply a creator must keep locked for the LATCH_LOCKED bit.
@@ -84,12 +86,16 @@ contract LatchLock is ILatchLock, ReentrancyGuard {
     error BadTranche(uint256 trancheIdx);
     error AlreadyReleased();
     error StillLatched(uint16 inputs);
+    error FeedStale();
 
-    constructor(ILatchGate gate_, address treasury_, uint16 feeBps_, uint16 minLockBps_) {
+    constructor(ILatchGate gate_, ILatchEvaluator evaluator_, address treasury_, uint16 feeBps_, uint16 minLockBps_) {
         if (feeBps_ > MAX_FEE_BPS) revert FeeTooHigh();
-        if (address(gate_) == address(0) || treasury_ == address(0)) revert ZeroAddress();
+        if (address(gate_) == address(0) || address(evaluator_) == address(0) || treasury_ == address(0)) {
+            revert ZeroAddress();
+        }
         if (minLockBps_ == 0 || minLockBps_ > 10_000) revert BadConfig();
         gate = gate_;
+        evaluator = evaluator_;
         treasury = treasury_;
         feeBps = feeBps_;
         minLockBps = minLockBps_;
@@ -162,7 +168,11 @@ contract LatchLock is ILatchLock, ReentrancyGuard {
         Tranche storage tr = ts[trancheIdx];
         if (tr.released) revert AlreadyReleased();
 
-        (bool pass, uint16 in_) = gate.checkLocal(l.token, tr.filterId);
+        // Evaluation goes through LatchEvaluator only. Unlock filters are combinational (enforced at createLock),
+        // so no latch state is involved.
+        if (!gate.feed().isFresh()) revert FeedStale();
+        uint16 in_ = gate.inputs(l.token);
+        (bool pass,) = evaluator.evaluate(gate.netlistPointer(tr.filterId), "", in_);
         if (!pass) revert StillLatched(in_);
 
         amount = tr.amount;

@@ -179,3 +179,10 @@ Start with Phase 0 now.
 - Product name is **Nandout**, at nandout.xyz. Use it in README, frontend, demo, SUBMISSION.md and the agent listing.
 - Contract names keep the Latch* prefix (LatchGate, LatchLock, LatchFeed, LatchEvaluator) — "latch" is the mechanism, "Nandout" is the product. Do not rename contracts; they are test-covered and will be verified on OKLink under these names.
 - README must state this once so judges aren't confused by the two names.
+
+## 20. Split out LatchEvaluator
+- Extract the netlist evaluator from LatchGate into `LatchEvaluator.sol`: immutable, ownerless, no proxy, no selfdestruct, pure/view only.
+- LatchGate and LatchLock both hold its address as an immutable constructor arg.
+- LatchLock's release path calls LatchEvaluator ONLY. LatchGate.check still calls TapeOut live eval; LatchGate.checkLocal calls LatchEvaluator.
+- README "Trust model": name the deployed LatchEvaluator address as the sealed custody path, contrasted with TapeOut factory isSealed() == false.
+- Keep test coverage: the malicious-upgrade test must still prove no funds move.

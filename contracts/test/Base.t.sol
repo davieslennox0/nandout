@@ -6,7 +6,8 @@ import {LatchFeed} from "../src/LatchFeed.sol";
 import {LatchGate} from "../src/LatchGate.sol";
 import {LatchLock} from "../src/LatchLock.sol";
 import {LatchBits} from "../src/LatchBits.sol";
-import {ILatchFeed, ILatchGate, ILatchLock, ICircuitRegistryView} from "../src/interfaces/ILatch.sol";
+import {LatchEvaluator} from "../src/LatchEvaluator.sol";
+import {ILatchEvaluator, ILatchFeed, ILatchGate, ILatchLock, ICircuitRegistryView} from "../src/interfaces/ILatch.sol";
 import {ICPU} from "../src/vendor/tapeout/interfaces/ICPU.sol";
 import {MockTapeOut} from "./mocks/MockTapeOut.sol";
 
@@ -29,6 +30,7 @@ abstract contract Base is Test {
     LatchFeed internal feed;
     LatchGate internal gate;
     LatchLock internal lock;
+    LatchEvaluator internal evaluator;
 
     mapping(string => uint256) internal filterId;
     string[] internal starterNames;
@@ -36,14 +38,20 @@ abstract contract Base is Test {
     function setUp() public virtual {
         vm.warp(1_760_000_000);
         tapeout = new MockTapeOut();
+        evaluator = new LatchEvaluator();
         feed = new LatchFeed(owner, MAX_AGE);
         vm.prank(owner);
         feed.setAttestor(attestor, true);
 
         address predictedGate = vm.computeCreateAddress(address(this), vm.getNonce(address(this)) + 1);
-        lock = new LatchLock(ILatchGate(predictedGate), treasury, FEE_BPS, MIN_LOCK_BPS);
+        lock = new LatchLock(ILatchGate(predictedGate), evaluator, treasury, FEE_BPS, MIN_LOCK_BPS);
         gate = new LatchGate(
-            ILatchFeed(address(feed)), ICircuitRegistryView(address(tapeout)), ILatchLock(address(lock)), MAX_GATES, EVAL_GAS_CAP
+            ILatchFeed(address(feed)),
+            ICircuitRegistryView(address(tapeout)),
+            ILatchLock(address(lock)),
+            evaluator,
+            MAX_GATES,
+            EVAL_GAS_CAP
         );
         assertEq(address(gate), predictedGate);
 

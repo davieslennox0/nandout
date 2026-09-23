@@ -5,6 +5,7 @@ import {Script, console2} from "forge-std/Script.sol";
 import {LatchFeed} from "../src/LatchFeed.sol";
 import {LatchGate} from "../src/LatchGate.sol";
 import {LatchLock} from "../src/LatchLock.sol";
+import {LatchEvaluator} from "../src/LatchEvaluator.sol";
 import {ILatchFeed, ILatchGate, ILatchLock, ICircuitRegistryView} from "../src/interfaces/ILatch.sol";
 import {ICPU} from "../src/vendor/tapeout/interfaces/ICPU.sol";
 
@@ -54,14 +55,17 @@ contract Deploy is Script {
         vm.startBroadcast();
         address deployer = msg.sender;
 
+        LatchEvaluator evaluator = new LatchEvaluator();
         LatchFeed feed = new LatchFeed(deployer, maxAge);
         address predictedGate = vm.computeCreateAddress(deployer, vm.getNonce(deployer) + 1);
-        LatchLock lock = new LatchLock(ILatchGate(predictedGate), treasury, feeBps, minLockBps);
-        LatchGate gate =
-            new LatchGate(ILatchFeed(address(feed)), ICircuitRegistryView(FACTORY), ILatchLock(address(lock)), maxGates, evalGasCap);
+        LatchLock lock = new LatchLock(ILatchGate(predictedGate), evaluator, treasury, feeBps, minLockBps);
+        LatchGate gate = new LatchGate(
+            ILatchFeed(address(feed)), ICircuitRegistryView(FACTORY), ILatchLock(address(lock)), evaluator, maxGates, evalGasCap
+        );
         require(address(gate) == predictedGate, "gate address prediction");
 
         string memory out = "deploy";
+        vm.serializeAddress(out, "evaluator", address(evaluator));
         vm.serializeAddress(out, "feed", address(feed));
         vm.serializeAddress(out, "gate", address(gate));
         vm.serializeAddress(out, "lock", address(lock));
@@ -81,6 +85,7 @@ contract Deploy is Script {
 
         string memory json = vm.serializeAddress(out, "deployer", deployer);
         vm.writeJson(json, string.concat("deployments/", vm.toString(block.chainid), ".json"));
+        console2.log("evaluator", address(evaluator));
         console2.log("feed", address(feed));
         console2.log("gate", address(gate));
         console2.log("lock", address(lock));

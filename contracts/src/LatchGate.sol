@@ -2,17 +2,17 @@
 pragma solidity ^0.8.24;
 
 import {ICPU} from "./vendor/tapeout/interfaces/ICPU.sol";
-import {NetlistVM} from "./vendor/tapeout/lib/NetlistVM.sol";
 import {SSTORE2} from "./vendor/tapeout/lib/SSTORE2.sol";
 import {LatchBits} from "./LatchBits.sol";
-import {ILatchFeed, ILatchGate, ILatchLock, ICircuitRegistryView} from "./interfaces/ILatch.sol";
+import {ILatchEvaluator, ILatchFeed, ILatchGate, ILatchLock, ICircuitRegistryView} from "./interfaces/ILatch.sol";
 
 /// @title LatchGate — "nothing moves on Ignix until the logic says so".
 /// @notice A filter is a TapeOut circuit (16 inputs → 1 output). Two evaluation paths (docs/RECON.md §4, Option C):
 ///         - `check` / `checkMany` call the live TapeOut circuit (`eval`, or `step` for latch filters) with a gas cap.
-///         - `checkLocal` evaluates the netlist snapshotted at registration with a vendored copy of TapeOut's
-///           NetlistVM. TapeOut's factory is still upgradeable; this path is not. LatchLock only uses this path.
-///         Stateful (latch) filters keep their state here, advanced by `snapshot` using the local path only.
+///         - `checkLocal` evaluates the netlist snapshotted at registration through LatchEvaluator (a sealed,
+///           stateless wrapper of TapeOut's NetlistVM). TapeOut's factory is still upgradeable; this path is not.
+///           LatchLock releases through LatchEvaluator directly.
+///         Stateful (latch) filters keep their state here, advanced by `snapshot` using LatchEvaluator only.
 ///         No owner, no admin, no upgrades.
 contract LatchGate is ILatchGate {
     struct Filter {
@@ -40,6 +40,7 @@ contract LatchGate is ILatchGate {
     ILatchFeed public immutable feed;
     ICircuitRegistryView public immutable registry; // TapeOut CircuitFactory
     ILatchLock public immutable lock;
+    ILatchEvaluator public immutable evaluator;
     uint32 public immutable maxGates;
     uint256 public immutable evalGasCap;
 
@@ -70,13 +71,24 @@ contract LatchGate is ILatchGate {
     error FeedStale();
     error EvalFailed(uint256 filterId);
     error LockMismatch();
+    error EvaluatorMismatch();
 
-    constructor(ILatchFeed feed_, ICircuitRegistryView registry_, ILatchLock lock_, uint32 maxGates_, uint256 evalGasCap_) {
-        // LatchLock is deployed first against this contract's predicted address; confirm the pairing.
+    constructor(
+        ILatchFeed feed_,
+        ICircuitRegistryView registry_,
+        ILatchLock lock_,
+        ILatchEvaluator evaluator_,
+        uint32 maxGates_,
+        uint256 evalGasCap_
+    ) {
+        // LatchLock is deployed first against this contract's predicted address; confirm the pairing and that both
+        // contracts evaluate with the same LatchEvaluator.
         if (address(lock_.gate()) != address(this)) revert LockMismatch();
+        if (address(lock_.evaluator()) != address(evaluator_)) revert EvaluatorMismatch();
         feed = feed_;
         registry = registry_;
         lock = lock_;
+        evaluator = evaluator_;
         maxGates = maxGates_;
         evalGasCap = evalGasCap_;
     }
@@ -120,8 +132,7 @@ contract LatchGate is ILatchGate {
         h = keccak256(nl);
         if (h != expectedHash) revert NetlistMismatch(expectedHash, h);
         // registry = address(0): any REF reverts, so the snapshot is self-contained and evaluates identically forever.
-        (uint256 nNand, uint256 nLatch, uint32 aState, uint32 aGates) =
-            NetlistVM.analyze(nl, LatchBits.N_IN, LatchBits.N_OUT, address(0));
+        (uint256 nNand, uint256 nLatch, uint32 aState, uint32 aGates) = evaluator.analyze(nl);
         if (aState != nState || aGates != gateCount || nNand + nLatch != gateCount) revert NetlistShape();
         pointer = SSTORE2.write(nl);
     }
@@ -141,6 +152,11 @@ contract LatchGate is ILatchGate {
 
     function getFilter(uint256 filterId) external view returns (Filter memory) {
         return _filter(filterId);
+    }
+
+    /// @notice SSTORE2 address of the immutable netlist snapshot (what LatchEvaluator evaluates).
+    function netlistPointer(uint256 filterId) external view returns (address) {
+        return _filter(filterId).netlistPointer;
     }
 
     function netlistOf(uint256 filterId) external view returns (bytes memory) {
@@ -259,10 +275,7 @@ contract LatchGate is ILatchGate {
         view
         returns (bytes memory newState, bool pass)
     {
-        bytes memory out;
-        (newState, out) =
-            NetlistVM.run(SSTORE2.read(f.netlistPointer), LatchBits.N_IN, LatchBits.N_OUT, state, LatchBits.pack(bits));
-        pass = uint8(out[0]) & 1 == 1;
+        (pass, newState) = evaluator.evaluate(f.netlistPointer, state, bits);
     }
 
     // ------------------------------------------------------------------ snapshots

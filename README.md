@@ -4,7 +4,7 @@
 
 **Naming:** *Nandout* is the product. *Latch* is the mechanism: a launch stays latched (untrusted) until a circuit
 unlatches it. So the contracts keep the `Latch*` names (`LatchGate`, `LatchLock`, `LatchFeed`), and that's how they're
-verified on OKLink.
+verified on OKLink. A fourth contract, `LatchEvaluator`, is the sealed evaluator that `LatchGate` and `LatchLock` share.
 
 Nandout is built on TapeOut logic circuits on X Layer (chainId 196):
 
@@ -26,14 +26,28 @@ Free to check, pay to create.
 
 Research on TapeOut, Ignix and X Layer: [`docs/RECON.md`](docs/RECON.md).
 
-## Trust guarantees
+## Trust model
+
+| Component | Upgradeable? | Who can change it |
+|---|---|---|
+| TapeOut `CircuitFactory` + beacons (`0x1f09…0761`) | **Yes**: `isSealed() == false` | TapeOut owner EOA `0x571d…aF15` can upgrade `eval` for every processor |
+| **`LatchEvaluator`** (address: _set at deploy_) | **No** | Nobody. No storage, no owner, no proxy, no selfdestruct, view-only |
+| `LatchLock`, `LatchGate` | No | Nobody. Immutable, ownerless |
+| `LatchFeed` | No (code) | Owner can only add/remove attestors |
+
+**`LatchEvaluator` is the sealed custody path.** It is a stateless wrapper around TapeOut's own NetlistVM (vendored
+verbatim, MIT). Every LatchLock release is evaluated there, on the netlist snapshotted when the filter was registered,
+and never by TapeOut's upgradeable contracts. If TapeOut upgrades its logic (or seals it), locked funds are unaffected
+either way. `LatchGate.check` still calls TapeOut's live circuit, which is the integration people see; `LatchGate.verify` shows
+both results and exposes any divergence.
 
 **LatchLock** (holds creator tokens):
 - After `createLock`, nothing about a lock can change. There is no owner, no admin withdraw, no pause, no circuit swap and no upgrade path.
 - Each tranche is released **only to its beneficiary**, and only when its unlock circuit passes. Anyone may trigger a release.
-- Releases evaluate the netlist **snapshotted at filter registration** with a vendored copy of TapeOut's MIT
-  `NetlistVM`. TapeOut's factory is still upgradeable by its owner (`isSealed() == false`, see RECON §1.6). This path
-  ignores that: a TapeOut upgrade cannot release or freeze locked funds. The test `test_release_ignoresEvilTapeOut` shows this.
+- Releases are evaluated by **`LatchEvaluator` only**, on the netlist snapshotted at filter registration. Inputs come
+  from `LatchGate.inputs` (ownerless). A TapeOut upgrade can't release or freeze locked funds:
+  `test_release_ignoresEvilTapeOut` (TapeOut says "pass", nothing moves) and `test_release_independentOfTapeOut`
+  (TapeOut is malicious and gas-bombing, and releases still work when the real condition holds).
 - Fee: `feeBps` (constructor immutable, ≤ 100 bps; we deploy with 50) of the amount actually received, paid in kind to an
   immutable treasury.
 - Unlock circuits must be **combinational**. `createLock` rejects latch filters (`StatefulUnlock`): a latch would
@@ -43,7 +57,7 @@ Research on TapeOut, Ignix and X Layer: [`docs/RECON.md`](docs/RECON.md).
 - Rebasing tokens are not supported.
 
 **LatchGate:** no owner. `check`/`checkMany` call the live TapeOut circuit (deep integration, eval gas-capped).
-`checkLocal` uses the snapshot. `verify` returns both and exposes any divergence.
+`checkLocal` evaluates the snapshot through `LatchEvaluator`. `verify` returns both and exposes any divergence.
 
 **LatchFeed:** the attestor-trust boundary. Attestors report agent/revenue/LP/holder/dev-sell bits. The owner (the Latch
 deploy wallet, published at deploy) can only add or remove attestors. `maxAge` is immutable. `LATCH_LOCKED` and

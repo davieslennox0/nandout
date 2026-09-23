@@ -7,6 +7,8 @@ import {LatchBits} from "../src/LatchBits.sol";
 import {ICPU} from "../src/vendor/tapeout/interfaces/ICPU.sol";
 import {MockERC20} from "./mocks/Tokens.sol";
 import {LatchLock} from "../src/LatchLock.sol";
+import {LatchEvaluator} from "../src/LatchEvaluator.sol";
+import {ILatchFeed, ILatchGate, ILatchLock, ICircuitRegistryView} from "../src/interfaces/ILatch.sol";
 
 contract LatchGateTest is Base {
     address internal token = makeAddr("token");
@@ -57,6 +59,27 @@ contract LatchGateTest is Base {
         uint256 cid = tapeout.tapeout(nl, 16, 1);
         vm.expectRevert(abi.encodeWithSelector(LatchGate.TooManyGates.selector, MAX_GATES + 1, MAX_GATES));
         gate.registerFilter(ICPU(address(tapeout)), cid, "big", keccak256(nl));
+    }
+
+    function test_constructor_rejectsEvaluatorMismatch() public {
+        LatchEvaluator other = new LatchEvaluator();
+        address predicted = vm.computeCreateAddress(address(this), vm.getNonce(address(this)) + 1);
+        LatchLock l = new LatchLock(ILatchGate(predicted), other, treasury, FEE_BPS, MIN_LOCK_BPS);
+        vm.expectRevert(LatchGate.EvaluatorMismatch.selector);
+        new LatchGate(ILatchFeed(address(feed)), ICircuitRegistryView(address(tapeout)), ILatchLock(address(l)), evaluator, MAX_GATES, EVAL_GAS_CAP);
+    }
+
+    function test_evaluator_matchesSnapshotAndRejectsRef() public {
+        _post(token, LatchBits.LP_LOCKED | LatchBits.TOP10_LT_40 | LatchBits.DEV_NO_SELL_7D);
+        uint256 id = filterId["BASIC_SAFETY"];
+        (bool pass,) = evaluator.evaluate(gate.netlistPointer(id), "", gate.inputs(token));
+        (bool local,) = gate.checkLocal(token, id);
+        assertTrue(pass);
+        assertEq(pass, local);
+        bytes memory ins;
+        for (uint256 i = 0; i < 16; i++) ins = abi.encodePacked(ins, uint24(2 + i));
+        vm.expectRevert(bytes("REF: target not a registered CPU"));
+        evaluator.analyze(abi.encodePacked(uint8(2), address(tapeout), uint64(1), uint8(16), uint8(1), ins));
     }
 
     // ------------------------------------------------------------------ inputs

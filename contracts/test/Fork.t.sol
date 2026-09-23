@@ -5,6 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {LatchFeed} from "../src/LatchFeed.sol";
 import {LatchGate} from "../src/LatchGate.sol";
 import {LatchLock} from "../src/LatchLock.sol";
+import {LatchEvaluator} from "../src/LatchEvaluator.sol";
 import {LatchBits} from "../src/LatchBits.sol";
 import {ILatchFeed, ILatchGate, ILatchLock, ICircuitRegistryView} from "../src/interfaces/ILatch.sol";
 import {ICPU} from "../src/vendor/tapeout/interfaces/ICPU.sol";
@@ -84,10 +85,11 @@ contract ForkTest is Test {
         LatchFeed feed = new LatchFeed(deployer, 30 minutes);
         vm.prank(deployer);
         feed.setAttestor(attestor, true);
+        LatchEvaluator evaluator = new LatchEvaluator();
         address predictedGate = vm.computeCreateAddress(address(this), vm.getNonce(address(this)) + 1);
-        LatchLock lock = new LatchLock(ILatchGate(predictedGate), deployer, 50, 500);
+        LatchLock lock = new LatchLock(ILatchGate(predictedGate), evaluator, deployer, 50, 500);
         LatchGate gate = new LatchGate(
-            ILatchFeed(address(feed)), ICircuitRegistryView(address(FACTORY)), ILatchLock(address(lock)), 512, 1_500_000
+            ILatchFeed(address(feed)), ICircuitRegistryView(address(FACTORY)), ILatchLock(address(lock)), evaluator, 512, 1_500_000
         );
         uint256[] memory fids = new uint256[](n);
         for (uint256 i = 0; i < n; i++) fids[i] = gate.registerFilter(ICPU(circuits), cids[i], "starter", hashes[i]);
