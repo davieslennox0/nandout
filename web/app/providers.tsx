@@ -2,9 +2,8 @@
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState, type ReactNode } from 'react';
-import { WagmiProvider, createConfig, http } from 'wagmi';
+import { WagmiProvider, createConfig, http, injected } from 'wagmi';
 import { xLayer } from 'wagmi/chains';
-import { injected } from 'wagmi/connectors';
 import { RPC } from '@/lib/config';
 
 export const wagmiConfig = createConfig({
