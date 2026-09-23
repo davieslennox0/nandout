@@ -3,6 +3,11 @@
 Block 71381515 (2026-09-23T08:02:52.136Z). 3876 Ignix launches, 38 graduated, 10 agent-linked.
 Read-only against X Layer mainnet; bits posted to a **local fork** LatchFeed (chain id 1960), filters evaluated there.
 
+> **Superseded bit names.** This run used the original revenue bits (bit1 `REV_GE_100`, bit2 `REV_GE_1000`), which
+> matched nothing. They were renamed after this run (LATCH_PROMPT §18) to `REV_GT_0` / `REV_GE_10`. Recomputed from the
+> same data: `REV_GT_0` 3 launches, `REV_GE_10` 1, `REVENUE_AGENTS` 2, `STRICT` 0 (one near miss that fails only
+> `LATCH_LOCKED ∨ AGE_GE_30D`), `UNLOCK_T2` 0.
+
 ## Per bit
 
 | bit | name | source | set | share |

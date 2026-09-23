@@ -1,4 +1,4 @@
-# LATCH — Build Prompt
+# NANDOUT — Build Prompt (contracts keep the Latch* prefix)
 
 You are building **Latch** for the Ignix x TapeOut Genesis Transistor Hackathon on X Layer mainnet (chainId 196).
 Deadline: 2026-10-06 05:00 UTC+1. Solo builder. Ship a working mainnet product, not a mock.
@@ -166,3 +166,16 @@ Start with Phase 0 now.
 - Document why this matches the name: a latch holds state until an input flips it.
 - Build one stateful starter circuit: STICKY_SAFETY (set on CURVE_SAFETY, reset on DEV_SELL or LP_PULLED).
 - Verify flip-flop semantics in Phase 0 notes before wiring; if per-block update makes state unusable for our cadence, document why and keep combinational.
+
+## 18. Post-data decisions
+- Rename bit1 REV_GE_100 -> REV_GT_0 (agent has any recorded revenue); bit2 REV_GE_1000 -> REV_GE_10. Update README bit table, starter filters, compiler fixtures and tests.
+- STRICT and REVENUE_AGENTS use REV_GT_0. Document in README: thresholds are circuit-level, not protocol-level — anyone can tape out a stricter revenue filter as the ecosystem grows, with no redeploy.
+- LatchLock MUST reject stateful (latch) filters as unlock circuits. Enforce in registerFilter metadata + a require in createLock, with a test. Rationale: a latched bad attestation would release funds irreversibly; combinational unlock conditions always reflect current attested state.
+- LP_PULLED stays monotonic: once set, never cleared by the attestor.
+- README "Findings" section: 12/3,876 pass BASIC_SAFETY, median launch is 100% concentrated by circulating supply, dev-sell detection must count all creator outflows because v4 sells route through aggregators, and top-10 must be measured against circulating not total supply. These are the product working.
+- Production RPC: rpc.ignix.bot is a dev dependency only; document the need for a dedicated X Layer provider for the attestor backfill.
+
+## 19. Rename
+- Product name is **Nandout**, at nandout.xyz. Use it in README, frontend, demo, SUBMISSION.md and the agent listing.
+- Contract names keep the Latch* prefix (LatchGate, LatchLock, LatchFeed, LatchEvaluator) — "latch" is the mechanism, "Nandout" is the product. Do not rename contracts; they are test-covered and will be verified on OKLink under these names.
+- README must state this once so judges aren't confused by the two names.

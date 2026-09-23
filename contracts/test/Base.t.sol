@@ -84,12 +84,12 @@ abstract contract Base is Test {
             return _all(x, LatchBits.LP_LOCKED | LatchBits.TOP10_LT_40 | LatchBits.DEV_NO_SELL_7D);
         }
         if (n == keccak256("REVENUE_AGENTS")) {
-            return _all(x, LatchBits.AGENT_LINKED | LatchBits.REV_GE_100 | LatchBits.LP_LOCKED);
+            return _all(x, LatchBits.AGENT_LINKED | LatchBits.REV_GT_0 | LatchBits.LP_LOCKED);
         }
         if (n == keccak256("STRICT")) {
             return _all(
                 x,
-                LatchBits.AGENT_LINKED | LatchBits.REV_GE_1000 | LatchBits.LP_LOCKED | LatchBits.TOP10_LT_25
+                LatchBits.AGENT_LINKED | LatchBits.REV_GT_0 | LatchBits.LP_LOCKED | LatchBits.TOP10_LT_25
                     | LatchBits.DEV_NO_SELL_7D
             ) && (x & (LatchBits.LATCH_LOCKED | LatchBits.AGE_GE_30D)) != 0;
         }
@@ -97,7 +97,7 @@ abstract contract Base is Test {
             return _all(x, LatchBits.AGE_GE_7D | LatchBits.LP_LOCKED | LatchBits.HOLDERS_GE_100);
         }
         if (n == keccak256("UNLOCK_T2")) {
-            return _all(x, LatchBits.AGE_GE_30D | LatchBits.REV_GE_1000 | LatchBits.HOLDERS_GE_300 | LatchBits.LP_LOCKED);
+            return _all(x, LatchBits.AGE_GE_30D | LatchBits.REV_GE_10 | LatchBits.HOLDERS_GE_300 | LatchBits.LP_LOCKED);
         }
         revert("unknown starter");
     }

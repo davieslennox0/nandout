@@ -118,6 +118,18 @@ contract LatchLockTest is Base {
         lock.createLock(address(token), 1e18, address(0), _tranches2());
     }
 
+    function test_create_rejectsStatefulUnlock() public {
+        uint64 sticky = uint64(filterId["STICKY_SAFETY"]);
+        LatchLock.TrancheInput[] memory tr = new LatchLock.TrancheInput[](2);
+        tr[0] = LatchLock.TrancheInput(uint64(filterId["UNLOCK_T1"]), 5_000);
+        tr[1] = LatchLock.TrancheInput(sticky, 5_000);
+        vm.prank(creator);
+        vm.expectRevert(abi.encodeWithSelector(LatchLock.StatefulUnlock.selector, sticky));
+        lock.createLock(address(token), 1e18, beneficiary, tr);
+        assertTrue(gate.isStateful(sticky));
+        assertFalse(gate.isStateful(filterId["UNLOCK_T1"]));
+    }
+
     function test_create_feeOnTransferRecordsReceived() public {
         FeeOnTransferToken fot = new FeeOnTransferToken(SUPPLY, 300); // 3% transfer tax
         fot.transfer(creator, 1_000_000e18); // creator receives 970,000

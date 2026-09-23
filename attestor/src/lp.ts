@@ -16,7 +16,11 @@ const posm = parseAbi([
   'function getPositionLiquidity(uint256) view returns (uint128)',
 ]);
 
-export interface LpState { peak: Record<Address, string> }
+export interface LpState {
+  peak: Record<Address, string>;
+  /** Tokens whose LP was ever seen pulled. Monotonic: never cleared (LatchFeed enforces the same on-chain). */
+  pulled?: Record<Address, number>;
+}
 
 export interface LpInfo {
   venue: 'v2' | 'v4';
@@ -69,7 +73,9 @@ function finish(state: LpState, token: Address, venue: 'v2' | 'v4', locked: bigi
   const peak = locked > prev ? locked : prev;
   state.peak[token] = peak.toString();
   const floor = (peak * BigInt(Math.round(THRESHOLDS.lpPulledBelowPeak * 10_000))) / 10_000n;
-  const lpPulled = peak > 0n && locked < floor;
+  const pulled = (state.pulled ??= {});
+  if (peak > 0n && locked < floor && !pulled[token]) pulled[token] = Math.floor(Date.now() / 1000);
+  const lpPulled = pulled[token] !== undefined;
   // A graduated launch whose LP was never seen in a recognised locker is neither locked nor "pulled" (no evidence).
   return { venue, locked, supply, holder, peak, lpLocked: locked > 0n && !lpPulled, lpPulled };
 }

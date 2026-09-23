@@ -25,8 +25,8 @@ export const RECOGNISED_LOCKERS: Record<string, { venue: 'v2' | 'v4'; note: stri
 export const BURN_ADDRESSES = ['0x0000000000000000000000000000000000000000', '0x000000000000000000000000000000000000dead'];
 
 export const THRESHOLDS = {
-  revLow: 100,
-  revHigh: 1000,
+  /** REV_GE_10. REV_GT_0 is any revenue > 0. Stricter revenue gates belong in circuits, not here. */
+  revMin: 10,
   top10Loose: 0.4,
   top10Strict: 0.25,
   holdersLow: 100,

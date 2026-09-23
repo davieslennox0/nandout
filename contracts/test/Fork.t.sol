@@ -97,7 +97,7 @@ contract ForkTest is Test {
             uint16(0),
             LatchBits.ATTESTED_MASK,
             LatchBits.LP_LOCKED | LatchBits.TOP10_LT_40 | LatchBits.DEV_NO_SELL_7D,
-            LatchBits.AGENT_LINKED | LatchBits.REV_GE_100 | LatchBits.LP_LOCKED | LatchBits.HOLDERS_GE_100,
+            LatchBits.AGENT_LINKED | LatchBits.REV_GT_0 | LatchBits.LP_LOCKED | LatchBits.HOLDERS_GE_100,
             LatchBits.TOP10_LT_40 | LatchBits.DEV_NO_SELL_7D | LatchBits.HOLDERS_GE_100 | LatchBits.LP_PULLED
         ];
         for (uint256 s = 0; s < samples.length; s++) {

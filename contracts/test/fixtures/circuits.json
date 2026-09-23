@@ -1,8 +1,8 @@
 {
   "bits": {
     "AGENT_LINKED": 0,
-    "REV_GE_100": 1,
-    "REV_GE_1000": 2,
+    "REV_GT_0": 1,
+    "REV_GE_10": 2,
     "LP_LOCKED": 3,
     "TOP10_LT_40": 4,
     "TOP10_LT_25": 5,
@@ -48,11 +48,11 @@
       "dsl": {
         "all": [
           "AGENT_LINKED",
-          "REV_GE_100",
+          "REV_GT_0",
           "LP_LOCKED"
         ]
       },
-      "infix": "AGENT_LINKED AND REV_GE_100 AND LP_LOCKED",
+      "infix": "AGENT_LINKED AND REV_GT_0 AND LP_LOCKED",
       "nIn": 16,
       "nOut": 1,
       "nState": 0,
@@ -72,7 +72,7 @@
       "dsl": {
         "all": [
           "AGENT_LINKED",
-          "REV_GE_1000",
+          "REV_GT_0",
           "LP_LOCKED",
           "TOP10_LT_25",
           "DEV_NO_SELL_7D",
@@ -84,15 +84,15 @@
           }
         ]
       },
-      "infix": "AGENT_LINKED AND REV_GE_1000 AND LP_LOCKED AND TOP10_LT_25 AND DEV_NO_SELL_7D AND (LATCH_LOCKED OR AGE_GE_30D)",
+      "infix": "AGENT_LINKED AND REV_GT_0 AND LP_LOCKED AND TOP10_LT_25 AND DEV_NO_SELL_7D AND (LATCH_LOCKED OR AGE_GE_30D)",
       "nIn": 16,
       "nOut": 1,
       "nState": 0,
       "gateCount": 13,
       "nandCount": 13,
       "latchCount": 0,
-      "netlist": "0x000000090000090000000b00000b000000120000130000000200000400000015000015000000050000160000001700001700000007000018000000190000190000000800001a0000001b00001b0000001400001c0000001d00001d",
-      "netlistHash": "0xa22f532f2ad4a3bf0bb78a05486eeed5e39b98d72151029c5553d6891cd101d6",
+      "netlist": "0x000000090000090000000b00000b000000120000130000000200000300000015000015000000050000160000001700001700000007000018000000190000190000000800001a0000001b00001b0000001400001c0000001d00001d",
+      "netlistHash": "0x6f2645533ebfa0c8cffafd798a8c5f17a196891067e1ca68efaf69e4aed1cd60",
       "estEvalGas": {
         "tx": 80900,
         "internalCall": 59900
@@ -128,12 +128,12 @@
       "dsl": {
         "all": [
           "AGE_GE_30D",
-          "REV_GE_1000",
+          "REV_GE_10",
           "HOLDERS_GE_300",
           "LP_LOCKED"
         ]
       },
-      "infix": "AGE_GE_30D AND REV_GE_1000 AND HOLDERS_GE_300 AND LP_LOCKED",
+      "infix": "AGE_GE_30D AND REV_GE_10 AND HOLDERS_GE_300 AND LP_LOCKED",
       "nIn": 16,
       "nOut": 1,
       "nState": 0,

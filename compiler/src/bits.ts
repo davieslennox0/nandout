@@ -2,8 +2,8 @@
 
 export const BITS = {
   AGENT_LINKED: 0,
-  REV_GE_100: 1,
-  REV_GE_1000: 2,
+  REV_GT_0: 1, // agent has any recorded revenue
+  REV_GE_10: 2, // agent revenue >= $10
   LP_LOCKED: 3,
   TOP10_LT_40: 4,
   TOP10_LT_25: 5,

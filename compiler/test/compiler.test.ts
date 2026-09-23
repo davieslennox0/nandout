@@ -58,7 +58,7 @@ test('packBits is little-endian per byte', () => {
 });
 
 test('random rules verify', () => {
-  const names = ['AGENT_LINKED', 'REV_GE_100', 'LP_LOCKED', 'TOP10_LT_40', 'LATCH_LOCKED', 'AGE_GE_7D', 'HOLDERS_GE_300'];
+  const names = ['AGENT_LINKED', 'REV_GT_0', 'LP_LOCKED', 'TOP10_LT_40', 'LATCH_LOCKED', 'AGE_GE_7D', 'HOLDERS_GE_300'];
   let seed = 42;
   const rnd = (n: number) => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed % n; };
   const gen = (d: number): unknown => {

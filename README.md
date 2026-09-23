@@ -1,13 +1,17 @@
-# Latch
+# Nandout
 
-> Nothing moves on Ignix until the logic says so.
+> Nothing moves on Ignix until the logic says so. · [nandout.xyz](https://nandout.xyz)
 
-Latch is built on TapeOut logic circuits on X Layer (chainId 196):
+**Naming:** *Nandout* is the product. *Latch* is the mechanism: a launch stays latched (untrusted) until a circuit
+unlatches it. So the contracts keep the `Latch*` names (`LatchGate`, `LatchLock`, `LatchFeed`), and that's how they're
+verified on OKLink.
 
-- **Latch Gate:** every Ignix launch is *latched* (untrusted) until it passes a taped-out filter circuit.
+Nandout is built on TapeOut logic circuits on X Layer (chainId 196):
+
+- **Gate** (`LatchGate`): every Ignix launch is *latched* (untrusted) until it passes a taped-out filter circuit.
   Vaults, agents and traders call `LatchGate.check` / `checkMany` before deploying capital. Free, view-only.
-- **Latch Lock:** creator allocations are held and released tranche by tranche, only when an unlock circuit passes.
-  Locking enough supply sets the `LATCH_LOCKED` input bit, so locked launches pass more filters.
+- **Lock** (`LatchLock`): creator allocations are held and released tranche by tranche, only when an unlock circuit
+  passes. Locking enough supply sets the `LATCH_LOCKED` input bit, so locked launches pass more filters.
 
 Free to check, pay to create.
 
@@ -17,7 +21,8 @@ Free to check, pay to create.
 |---|---|
 | `compiler/` | Rule DSL → NAND/LATCH netlist in TapeOut's format, exhaustively verified over all 2^16 inputs (×2 states for latches). |
 | `contracts/` | `LatchFeed`, `LatchGate`, `LatchLock` + Foundry tests against a TapeOut mock that runs TapeOut's own NetlistVM. **Not deployed.** |
-| `attestor/`, `web/`, `agent/` | Not started. |
+| `attestor/` | Ignix index + X Layer Transfer logs → attested bits → LatchFeed. First full cycle run against a local fork ([`docs/data/bit-distribution.md`](docs/data/bit-distribution.md)). |
+| `web/`, `agent/` | Not started. |
 
 Research on TapeOut, Ignix and X Layer: [`docs/RECON.md`](docs/RECON.md).
 
@@ -31,6 +36,9 @@ Research on TapeOut, Ignix and X Layer: [`docs/RECON.md`](docs/RECON.md).
   ignores that: a TapeOut upgrade cannot release or freeze locked funds. The test `test_release_ignoresEvilTapeOut` shows this.
 - Fee: `feeBps` (constructor immutable, ≤ 100 bps; we deploy with 50) of the amount actually received, paid in kind to an
   immutable treasury.
+- Unlock circuits must be **combinational**. `createLock` rejects latch filters (`StatefulUnlock`): a latch would
+  carry one bad attestation forward forever, and a release is irreversible. A combinational condition always
+  reflects the current attested state.
 - Liveness: releases need a fresh LatchFeed. If every attestor stops, releases wait until one resumes.
 - Rebasing tokens are not supported.
 
@@ -40,14 +48,15 @@ Research on TapeOut, Ignix and X Layer: [`docs/RECON.md`](docs/RECON.md).
 **LatchFeed:** the attestor-trust boundary. Attestors report agent/revenue/LP/holder/dev-sell bits. The owner (the Latch
 deploy wallet, published at deploy) can only add or remove attestors. `maxAge` is immutable. `LATCH_LOCKED` and
 `AGE_*` can't be attested: LatchGate computes them on-chain. Launch time and creator are write-once.
+`LP_PULLED` is final: once set, the feed keeps it set whatever later posts say (the attestor never clears it either).
 
 ## Input bits (uint16, little-endian pins)
 
 | bit | name | source |
 |---|---|---|
 | 0 | AGENT_LINKED | attested (Ignix `asp.matched == "linked"`) |
-| 1 | REV_GE_100 | attested |
-| 2 | REV_GE_1000 | attested |
+| 1 | REV_GT_0 | attested: the linked agent has any recorded revenue (Ignix `asp.rev`, lifetime USD) |
+| 2 | REV_GE_10 | attested: agent revenue ≥ $10 |
 | 3 | LP_LOCKED | attested |
 | 4 | TOP10_LT_40 | attested |
 | 5 | TOP10_LT_25 | attested |
@@ -57,7 +66,7 @@ deploy wallet, published at deploy) can only add or remove attestors. `maxAge` i
 | 9 | AGE_GE_30D | **on-chain** |
 | 10 | HOLDERS_GE_100 | attested |
 | 11 | HOLDERS_GE_300 | attested |
-| 12 | LP_PULLED | attested: graduated pair whose recognised-locker LP share fell below threshold |
+| 12 | LP_PULLED | attested, **monotonic**: locked LP fell below 90% of its observed peak, or the v4 position left the locker |
 | 13–15 | reserved | must be 0 |
 
 ## Circuits
@@ -72,13 +81,46 @@ Two classes:
 | Circuit | Kind | Elements | Rule |
 |---|---|---|---|
 | BASIC_SAFETY | filter | 4 | LP_LOCKED ∧ TOP10_LT_40 ∧ DEV_NO_SELL_7D |
-| REVENUE_AGENTS | filter | 4 | AGENT_LINKED ∧ REV_GE_100 ∧ LP_LOCKED |
-| STRICT | filter | 13 | AGENT_LINKED ∧ REV_GE_1000 ∧ LP_LOCKED ∧ TOP10_LT_25 ∧ DEV_NO_SELL_7D ∧ (LATCH_LOCKED ∨ AGE_GE_30D) |
+| REVENUE_AGENTS | filter | 4 | AGENT_LINKED ∧ REV_GT_0 ∧ LP_LOCKED |
+| STRICT | filter | 13 | AGENT_LINKED ∧ REV_GT_0 ∧ LP_LOCKED ∧ TOP10_LT_25 ∧ DEV_NO_SELL_7D ∧ (LATCH_LOCKED ∨ AGE_GE_30D) |
 | UNLOCK_T1 | unlock | 4 | AGE_GE_7D ∧ LP_LOCKED ∧ HOLDERS_GE_100 |
-| UNLOCK_T2 | unlock | 6 | AGE_GE_30D ∧ REV_GE_1000 ∧ HOLDERS_GE_300 ∧ LP_LOCKED |
+| UNLOCK_T2 | unlock | 6 | AGE_GE_30D ∧ REV_GE_10 ∧ HOLDERS_GE_300 ∧ LP_LOCKED |
 | STICKY_SAFETY | latch | 11 | set: TOP10_LT_40 ∧ DEV_NO_SELL_7D ∧ HOLDERS_GE_100 · reset: ¬DEV_NO_SELL_7D ∨ LP_PULLED |
 
 Measured in tests: `check` 36k–59k gas, `checkLocal` 27k–48k gas.
+
+**Thresholds are circuit-level, not protocol-level.** The feed carries coarse facts (any revenue, ≥ $10, ≥100 holders…);
+what counts as "safe" lives in circuits. As the ecosystem grows, anyone can tape out a stricter filter and register it
+on LatchGate: no redeploy, no admin, no feed change. The revenue bits were set from real data: today the best
+agent-linked launch has $11.50 of agent revenue, so $100/$1,000 gates would have matched nothing.
+
+## Findings from the first full cycle
+
+Run over all 3,876 Ignix launches at block 71,381,515 (2026-09-23), read-only against mainnet, filters evaluated on a
+local fork. Full dump: [`docs/data/bit-distribution.md`](docs/data/bit-distribution.md). These are the product working:
+
+- **12 of 3,876 launches pass `BASIC_SAFETY`.** Only 38 have graduated to a pool at all. The largest launch
+  (3,965 holders) fails: its top-10 wallets hold 64% of circulating supply.
+- **With the revenue bits recalibrated** (`REV_GT_0`, `REV_GE_10`), 2 launches pass `REVENUE_AGENTS`. `STRICT` has a
+  near miss: one agent-linked launch ($11.50 agent revenue, top-10 at 22.2%, no dev sells, LP locked) fails only
+  `LATCH_LOCKED ∨ AGE_GE_30D`. If its creator locks 5% of supply in LatchLock, it passes. That's Gate and Lock working together.
+- **The median launch is 100% concentrated** by circulating supply: most launches are one wallet (usually the dev) and
+  unsold curve inventory.
+- **Top-10 must be measured against circulating supply, not total supply.** Against total supply, unsold curve
+  inventory made 3,865 of 3,876 launches (including dev-only tokens) look "distributed".
+- **Dev-sell detection must count every creator outflow.** v4 sells route through aggregator hops, so "creator sent
+  to the pool" misses them; moving supply to fresh wallets is the usual prelude to selling anyway.
+- **A latch keeps what it saw.** A sticky filter fed one bad cycle kept those results until reset conditions fired.
+  That is the point of a latch, and the reason unlock circuits must be combinational.
+
+## Attestor infrastructure
+
+The backfill reads ERC-20 `Transfer` logs for every launch since 2026-08-19 (~600k transfers, ~2,400 `eth_getLogs`
+calls). Public X Layer RPCs cap log queries at 100 blocks, so development uses Ignix's RPC (`rpc.ignix.bot`, 5,000 blocks,
+1,000 addresses per call). **That is a development dependency only.** Production needs a dedicated X Layer provider
+with wide `eth_getLogs` ranges (`LOG_RPC_URL`), so the attestor doesn't depend on the infra of the platform it attests.
+Incremental cycles fetch only new blocks (seconds). The index is checked against on-chain `balanceOf`
+(`tsx src/verify-index.ts`: 0 mismatches in 272 checks on the first run).
 
 ## Develop
 

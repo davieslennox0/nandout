@@ -8,7 +8,8 @@ import {ILatchFeed} from "./interfaces/ILatch.sol";
 /// @title LatchFeed — attested, off-chain-derived input bits for Ignix launches.
 /// @notice Trust assumption: attestors are trusted to report agent/revenue/LP/holder/dev-sell bits honestly.
 ///         On-chain bits (LATCH_LOCKED, AGE_*) can never be written here; LatchGate computes them.
-///         Launch time and creator are write-once per token.
+///         Launch time and creator are write-once per token. LP_PULLED is final: once set it stays set, whatever
+///         later posts say.
 ///
 ///         Freshness is global: every post (or heartbeat) proves the attestor re-evaluated the whole index,
 ///         and only tokens whose bits changed are written. `isFresh()` is false once `maxAge` passes
@@ -75,9 +76,9 @@ contract LatchFeed is ILatchFeed, Ownable2Step {
                 e.creator = u.creator;
                 emit LaunchRegistered(u.token, u.creator, u.launchTime);
             }
-            e.bits = u.bits;
+            e.bits = u.bits | (e.bits & LatchBits.LP_PULLED);
             e.updatedAt = nowTs;
-            emit BitsUpdated(u.token, u.bits, nowTs);
+            emit BitsUpdated(u.token, e.bits, nowTs);
         }
         lastHeartbeat = nowTs;
         emit Heartbeat(msg.sender, nowTs);

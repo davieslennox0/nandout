@@ -134,6 +134,11 @@ contract LatchGate is ILatchGate {
         return filterId != 0 && filterId <= _filters.length;
     }
 
+    /// @notice True for latch filters (nState > 0), recorded from TapeOut's circuitInfo at registration.
+    function isStateful(uint256 filterId) external view returns (bool) {
+        return _filter(filterId).nState != 0;
+    }
+
     function getFilter(uint256 filterId) external view returns (Filter memory) {
         return _filter(filterId);
     }

@@ -17,6 +17,7 @@ interface ILatchLock {
 interface ILatchGate {
     function checkLocal(address token, uint256 filterId) external view returns (bool pass, uint16 inputs);
     function filterExists(uint256 filterId) external view returns (bool);
+    function isStateful(uint256 filterId) external view returns (bool);
     function lock() external view returns (ILatchLock);
 }
 

@@ -59,8 +59,8 @@ export function attest(
   };
   const rev = l.asp?.rev ?? null;
   set('AGENT_LINKED', l.asp?.matched === 'linked', l.asp ? `OKX.AI agent #${l.asp.id} (${l.asp.matched})` : 'no agent link');
-  set('REV_GE_100', (rev ?? 0) >= THRESHOLDS.revLow, rev === null ? 'no agent revenue' : `agent revenue $${rev}`);
-  set('REV_GE_1000', (rev ?? 0) >= THRESHOLDS.revHigh, rev === null ? 'no agent revenue' : `agent revenue $${rev}`);
+  set('REV_GT_0', (rev ?? 0) > 0, rev === null ? 'no agent revenue' : `agent revenue $${rev} (lifetime, Ignix asp.rev)`);
+  set('REV_GE_10', (rev ?? 0) >= THRESHOLDS.revMin, rev === null ? 'no agent revenue' : `agent revenue $${rev}`);
   if (!l.graduated) {
     set('LP_LOCKED', false, 'on bonding curve, no LP yet');
     set('LP_PULLED', false, 'on bonding curve, no LP yet');

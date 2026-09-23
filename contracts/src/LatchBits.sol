@@ -6,8 +6,8 @@ pragma solidity ^0.8.24;
 ///         Circuit pins are packed little-endian: pin i = byte (i >> 3), bit (i & 7).
 library LatchBits {
     uint16 internal constant AGENT_LINKED = 1 << 0;
-    uint16 internal constant REV_GE_100 = 1 << 1;
-    uint16 internal constant REV_GE_1000 = 1 << 2;
+    uint16 internal constant REV_GT_0 = 1 << 1; // agent has any recorded revenue
+    uint16 internal constant REV_GE_10 = 1 << 2; // agent revenue >= $10
     uint16 internal constant LP_LOCKED = 1 << 3;
     uint16 internal constant TOP10_LT_40 = 1 << 4;
     uint16 internal constant TOP10_LT_25 = 1 << 5;

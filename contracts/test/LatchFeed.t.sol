@@ -67,6 +67,14 @@ contract LatchFeedTest is Base {
         feed.post(u);
     }
 
+    function test_lpPulledIsFinal() public {
+        _post(token, LatchBits.LP_LOCKED);
+        _post(token, LatchBits.LP_PULLED);
+        _post(token, LatchBits.LP_LOCKED | LatchBits.HOLDERS_GE_100); // attestor "forgets" the pull
+        (uint16 bits,,,) = feed.getBits(token);
+        assertEq(bits, LatchBits.LP_LOCKED | LatchBits.HOLDERS_GE_100 | LatchBits.LP_PULLED);
+    }
+
     function test_freshness() public {
         assertFalse(feed.isFresh()); // never posted
         _post(token, 0);

@@ -14,6 +14,9 @@ import {ILatchGate, ILatchLock} from "./interfaces/ILatch.sol";
 ///
 ///         Fee: `feeBps` of the amount actually received, paid in kind to `treasury` at creation. Both immutable.
 ///
+///         Unlock circuits must be combinational. A latch filter would carry one bad attestation forward forever,
+///         and a release is irreversible; a combinational condition always reflects the current attested state.
+///
 ///         Liveness: releases need a fresh LatchFeed. If every attestor stops, releases wait until one resumes.
 ///
 ///         Not supported: rebasing tokens (balances that change without transfers).
@@ -76,6 +79,7 @@ contract LatchLock is ILatchLock, ReentrancyGuard {
     error ZeroAmount();
     error BadTranches();
     error UnknownFilter(uint64 filterId);
+    error StatefulUnlock(uint64 filterId);
     error UnknownLock(uint256 lockId);
     error BadTranche(uint256 trancheIdx);
     error AlreadyReleased();
@@ -106,6 +110,7 @@ contract LatchLock is ILatchLock, ReentrancyGuard {
         for (uint256 i = 0; i < n; i++) {
             if (tranches[i].bps == 0) revert BadTranches();
             if (!gate.filterExists(tranches[i].filterId)) revert UnknownFilter(tranches[i].filterId);
+            if (gate.isStateful(tranches[i].filterId)) revert StatefulUnlock(tranches[i].filterId);
             bpsSum += tranches[i].bps;
         }
         if (bpsSum != 10_000) revert BadTranches();

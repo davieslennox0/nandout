@@ -80,12 +80,12 @@ test('attest: dev sell inside vs outside the 7-day window', () => {
 });
 
 test('attest: agent + revenue + LP bits', () => {
-  const l = launch({ graduated: true, pair: A(0xbeef), asp: { id: 7, name: 'x', matched: 'linked', rev: 150 } });
+  const l = launch({ graduated: true, pair: A(0xbeef), asp: { id: 7, name: 'x', matched: 'linked', rev: 8.8 } });
   const lp: LpInfo = { venue: 'v2', locked: 10n, supply: 11n, holder: null, peak: 10n, lpLocked: true, lpPulled: false };
   const a = attest(l, holdings(book(), excludedFor(l)), lp, undefined, HEAD);
   assert.equal(has(a.bits, 'AGENT_LINKED'), 1);
-  assert.equal(has(a.bits, 'REV_GE_100'), 1);
-  assert.equal(has(a.bits, 'REV_GE_1000'), 0);
+  assert.equal(has(a.bits, 'REV_GT_0'), 1);
+  assert.equal(has(a.bits, 'REV_GE_10'), 0);
   assert.equal(has(a.bits, 'LP_LOCKED'), 1);
   const pulled = attest(l, holdings(book(), excludedFor(l)), { ...lp, locked: 1n, lpLocked: false, lpPulled: true }, undefined, HEAD);
   assert.equal(has(pulled.bits, 'LP_LOCKED'), 0);

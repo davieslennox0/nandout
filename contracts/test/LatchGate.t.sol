@@ -281,14 +281,23 @@ contract LatchGateTest is Base {
         assertTrue(_advance(id));
         _post(token, LatchBits.DEV_NO_SELL_7D); // holders drop, concentration rises: still trusted
         assertTrue(_advance(id));
-        _post(token, curve | LatchBits.LP_PULLED); // LP pulled wins even while curve conditions hold
+        _post(token, curve & ~LatchBits.DEV_NO_SELL_7D); // dev sold: re-latched
         assertFalse(_advance(id));
-        _post(token, LatchBits.DEV_NO_SELL_7D);
-        assertFalse(_advance(id));
-        _post(token, curve); // must earn it again
+        _post(token, curve); // dev sale ages out of the 7d window: trust can be earned again
         assertTrue(_advance(id));
-        _post(token, curve & ~LatchBits.DEV_NO_SELL_7D); // dev sold
+    }
+
+    /// LP_PULLED is final in the feed, so a launch that pulled LP can never re-earn STICKY_SAFETY.
+    function test_stickySafety_lpPulledIsPermanent() public {
+        uint256 id = filterId["STICKY_SAFETY"];
+        uint16 curve = LatchBits.TOP10_LT_40 | LatchBits.DEV_NO_SELL_7D | LatchBits.HOLDERS_GE_100;
+        _post(token, curve);
+        assertTrue(_advance(id));
+        _post(token, curve | LatchBits.LP_PULLED); // pull wins even while curve conditions hold
         assertFalse(_advance(id));
+        _post(token, curve); // attestor omits the bit: the feed keeps it
+        assertFalse(_advance(id));
+        assertEq(gate.inputs(token) & LatchBits.LP_PULLED, LatchBits.LP_PULLED);
     }
 
     function _advance(uint256 id) internal returns (bool) {
