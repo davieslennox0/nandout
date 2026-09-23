@@ -1,0 +1,36 @@
+// Latch input bit schema. Must stay in sync with contracts/src/LatchBits.sol (checked by the fixture test).
+
+export const BITS = {
+  AGENT_LINKED: 0,
+  REV_GE_100: 1,
+  REV_GE_1000: 2,
+  LP_LOCKED: 3,
+  TOP10_LT_40: 4,
+  TOP10_LT_25: 5,
+  DEV_NO_SELL_7D: 6,
+  LATCH_LOCKED: 7,
+  AGE_GE_7D: 8,
+  AGE_GE_30D: 9,
+  HOLDERS_GE_100: 10,
+  HOLDERS_GE_300: 11,
+} as const;
+
+export type BitName = keyof typeof BITS;
+
+export const N_IN = 16;
+export const N_OUT = 1;
+
+/** Bits computed on-chain by LatchGate; never attested. */
+export const ONCHAIN_BITS: readonly BitName[] = ['LATCH_LOCKED', 'AGE_GE_7D', 'AGE_GE_30D'];
+
+export const ATTESTED_MASK = (Object.keys(BITS) as BitName[])
+  .filter((b) => !ONCHAIN_BITS.includes(b))
+  .reduce((m, b) => m | (1 << BITS[b]), 0);
+
+export const ONCHAIN_MASK = ONCHAIN_BITS.reduce((m, b) => m | (1 << BITS[b]), 0);
+
+export const RESERVED_MASK = 0xf000;
+
+export function isBitName(s: string): s is BitName {
+  return Object.prototype.hasOwnProperty.call(BITS, s);
+}

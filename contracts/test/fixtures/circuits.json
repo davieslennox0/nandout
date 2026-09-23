@@ -1,0 +1,149 @@
+{
+  "bits": {
+    "AGENT_LINKED": 0,
+    "REV_GE_100": 1,
+    "REV_GE_1000": 2,
+    "LP_LOCKED": 3,
+    "TOP10_LT_40": 4,
+    "TOP10_LT_25": 5,
+    "DEV_NO_SELL_7D": 6,
+    "LATCH_LOCKED": 7,
+    "AGE_GE_7D": 8,
+    "AGE_GE_30D": 9,
+    "HOLDERS_GE_100": 10,
+    "HOLDERS_GE_300": 11
+  },
+  "attestedMask": 3199,
+  "onchainMask": 896,
+  "circuits": [
+    {
+      "name": "BASIC_SAFETY",
+      "kind": "combinational",
+      "dsl": {
+        "all": [
+          "LP_LOCKED",
+          "TOP10_LT_40",
+          "DEV_NO_SELL_7D"
+        ]
+      },
+      "infix": "LP_LOCKED AND TOP10_LT_40 AND DEV_NO_SELL_7D",
+      "nIn": 16,
+      "nOut": 1,
+      "nState": 0,
+      "gateCount": 4,
+      "nandCount": 4,
+      "latchCount": 0,
+      "netlist": "0x00000005000006000000120000120000000800001300000014000014",
+      "netlistHash": "0x3297eea6e1a866d2e3038b67157669d6f65aa38bc05d04166fd41b9b5afecd9f",
+      "estEvalGas": {
+        "tx": 60200,
+        "internalCall": 39200
+      }
+    },
+    {
+      "name": "REVENUE_AGENTS",
+      "kind": "combinational",
+      "dsl": {
+        "all": [
+          "AGENT_LINKED",
+          "REV_GE_100",
+          "LP_LOCKED"
+        ]
+      },
+      "infix": "AGENT_LINKED AND REV_GE_100 AND LP_LOCKED",
+      "nIn": 16,
+      "nOut": 1,
+      "nState": 0,
+      "gateCount": 4,
+      "nandCount": 4,
+      "latchCount": 0,
+      "netlist": "0x00000002000003000000120000120000000500001300000014000014",
+      "netlistHash": "0x19a15935aa9e410aea502e76acff67d73f6ffd865304b0334f4744e8caf80c66",
+      "estEvalGas": {
+        "tx": 60200,
+        "internalCall": 39200
+      }
+    },
+    {
+      "name": "STRICT",
+      "kind": "combinational",
+      "dsl": {
+        "all": [
+          "AGENT_LINKED",
+          "REV_GE_1000",
+          "LP_LOCKED",
+          "TOP10_LT_25",
+          "DEV_NO_SELL_7D",
+          {
+            "any": [
+              "LATCH_LOCKED",
+              "AGE_GE_30D"
+            ]
+          }
+        ]
+      },
+      "infix": "AGENT_LINKED AND REV_GE_1000 AND LP_LOCKED AND TOP10_LT_25 AND DEV_NO_SELL_7D AND (LATCH_LOCKED OR AGE_GE_30D)",
+      "nIn": 16,
+      "nOut": 1,
+      "nState": 0,
+      "gateCount": 13,
+      "nandCount": 13,
+      "latchCount": 0,
+      "netlist": "0x000000090000090000000b00000b000000120000130000000200000400000015000015000000050000160000001700001700000007000018000000190000190000000800001a0000001b00001b0000001400001c0000001d00001d",
+      "netlistHash": "0xa22f532f2ad4a3bf0bb78a05486eeed5e39b98d72151029c5553d6891cd101d6",
+      "estEvalGas": {
+        "tx": 80900,
+        "internalCall": 59900
+      }
+    },
+    {
+      "name": "UNLOCK_T1",
+      "kind": "combinational",
+      "dsl": {
+        "all": [
+          "AGE_GE_7D",
+          "LP_LOCKED",
+          "HOLDERS_GE_100"
+        ]
+      },
+      "infix": "AGE_GE_7D AND LP_LOCKED AND HOLDERS_GE_100",
+      "nIn": 16,
+      "nOut": 1,
+      "nState": 0,
+      "gateCount": 4,
+      "nandCount": 4,
+      "latchCount": 0,
+      "netlist": "0x0000000500000a000000120000120000000c00001300000014000014",
+      "netlistHash": "0x768153f1d2b4cc5c1eed0bc7d49db1338c3ec521e803ab0d4aa6666af9f8b662",
+      "estEvalGas": {
+        "tx": 60200,
+        "internalCall": 39200
+      }
+    },
+    {
+      "name": "UNLOCK_T2",
+      "kind": "combinational",
+      "dsl": {
+        "all": [
+          "AGE_GE_30D",
+          "REV_GE_1000",
+          "HOLDERS_GE_300",
+          "LP_LOCKED"
+        ]
+      },
+      "infix": "AGE_GE_30D AND REV_GE_1000 AND HOLDERS_GE_300 AND LP_LOCKED",
+      "nIn": 16,
+      "nOut": 1,
+      "nState": 0,
+      "gateCount": 6,
+      "nandCount": 6,
+      "latchCount": 0,
+      "netlist": "0x0000000400000b000000120000120000000d000013000000140000140000000500001500000016000016",
+      "netlistHash": "0x1d8d30ad66c4f628b7122b41f8c7629f2eac4827482c68555fa0d37bf386f7d0",
+      "estEvalGas": {
+        "tx": 64800,
+        "internalCall": 43800
+      }
+    }
+  ]
+}
