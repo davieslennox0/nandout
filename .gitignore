@@ -1,0 +1,13 @@
+node_modules/
+.env
+.env.*
+!.env.example
+dist/
+.next/
+out/
+cache/
+broadcast/
+*.log
+.DS_Store
+attestor/logs/
+contracts/lib/

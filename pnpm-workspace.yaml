@@ -1,0 +1,7 @@
+packages:
+  - compiler
+  - attestor
+  - web
+  - agent
+allowBuilds:
+  esbuild: set this to true or false

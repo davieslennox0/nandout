@@ -1,0 +1,9 @@
+{
+  "name": "latch",
+  "private": true,
+  "packageManager": "pnpm@12.5.1",
+  "scripts": {
+    "compile:circuits": "pnpm --filter @latch/compiler build:circuits",
+    "test": "pnpm -r test && cd contracts && forge test"
+  }
+}
