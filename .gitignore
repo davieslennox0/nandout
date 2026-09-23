@@ -11,3 +11,4 @@ broadcast/
 .DS_Store
 attestor/logs/
 contracts/lib/
+contracts/deployments/1960.json

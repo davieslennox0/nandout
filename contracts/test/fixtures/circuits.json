@@ -16,6 +16,7 @@
   },
   "attestedMask": 7295,
   "onchainMask": 896,
+  "count": 6,
   "circuits": [
     {
       "name": "BASIC_SAFETY",
