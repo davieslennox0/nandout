@@ -121,6 +121,23 @@ currently 0.02 gwei, so 1M gas ≈ 0.00002 OKB.
 - Consequence: the prompt's "renounced factory" assumption is **false today**. A LatchLock whose release depends on
   `Circuits.eval` inherits that upgrade key. See §4.
 
+### 1.6b Flip-flop (LATCH) semantics (for §17 stateful filters)
+
+Checked against `NetlistVM.run` / `_execute` (verified source):
+- A LATCH element outputs the **state passed in by the caller** (the previous step's value). After all signals are
+  computed, its new state = its `d` signal from *this* step. `d` may reference a later signal (feedback).
+- State is a caller-supplied bit-packed `bytes` (latch k = bit k, in element order). `step(id, state, inputs)` is
+  a **pure view that returns `(newState, outputs)`**. `eval` reverts for circuits with latches.
+- **There is no on-chain clock on X Layer.** "Updated per block" in public write-ups refers to TapeOut's BSC-only
+  runner (`beat` / `heartOf`, runner `0x592B…b28F`), which has **no code on X Layer**. On X Layer, state only exists
+  if some contract stores `newState` and feeds it back.
+- Consequence: per-block updates are not a problem for our cadence. The state advances exactly when **LatchGate**
+  advances it (`snapshot`, at most once per block per token/filter; the keeper calls it after each feed post).
+  A stateful filter holds its value across feed staleness, because a stale feed can't move it either way.
+
+Latch filters use a reset-priority SR latch: `next = NOT reset AND (set OR prev)`, output = `next`.
+1 LATCH + a few NANDs. Test circuit `STICKY_TEST` = 8 elements (7 NAND + 1 LATCH).
+
 ### 1.7 Economics observed
 
 - Deploy fee 0.0066 OKB. Per-mint-tx protocol fee 0.00066 OKB. Per-tape-out fee 0.0013 OKB (constant in the impl).
