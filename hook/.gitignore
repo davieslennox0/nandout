@@ -2,4 +2,4 @@ lib/
 out/
 cache/
 broadcast/
-bench/
+/bench/

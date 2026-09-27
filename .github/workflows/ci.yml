@@ -64,7 +64,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: foundry-rs/foundry-toolchain@v1
       - name: Install v4-core (pinned)
-        run: forge install Uniswap/v4-core@cd98eff28324bfac652e63a239a60632a761790b --no-git
+        run: |
+          git clone --quiet https://github.com/Uniswap/v4-core lib/v4-core
+          git -C lib/v4-core checkout --quiet cd98eff28324bfac652e63a239a60632a761790b
+          git -C lib/v4-core submodule update --init --recursive --depth 1 --quiet
       - run: forge build --sizes
       - name: Tests (fork tests run against a local fork of X Layer mainnet; nothing is broadcast)
         env:
