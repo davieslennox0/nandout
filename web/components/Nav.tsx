@@ -8,6 +8,7 @@ const LINKS = [
   ['/', 'Launches'],
   ['/build', 'Build'],
   ['/lock', 'Lock'],
+  ['/creators', 'Creators'],
   ['/circuits', 'Circuits'],
   ['/treasury', 'Treasury'],
   ['/docs', 'Docs'],
@@ -35,7 +36,7 @@ export function Nav() {
       </Link>
       <nav className="links" aria-label="Sections">
         {LINKS.map(([href, label]) => (
-          <Link key={href} href={href} className={path === href ? 'on' : ''}>
+          <Link key={href} href={href} className={path === href || (href !== '/' && path.startsWith(href + '/')) ? 'on' : ''}>
             {label}
           </Link>
         ))}

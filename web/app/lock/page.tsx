@@ -1,6 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import { formatUnits, isAddress, parseUnits, type Address } from 'viem';
 import { useAccount, usePublicClient, useReadContract, useReadContracts, useWriteContract } from 'wagmi';
 import { NotDeployed } from '@/components/NotDeployed';
@@ -9,7 +11,32 @@ import { erc20Abi, gateAbi, lockAbi } from '@/lib/abi';
 import { DEPLOYMENT, deployed } from '@/lib/config';
 import { useFilters } from '@/lib/hooks';
 
-const fmt = (v: bigint, d: number) => Number(formatUnits(v, d)).toLocaleString(undefined, { maximumFractionDigits: 4 });
+const fmt = (v: bigint, d: number) => Number(formatUnits(v, d)).toLocaleString('en-US', { maximumFractionDigits: 4 });
+
+interface PreviewFilter { id: number; name: string; starter: string | null; stateful: boolean; circuitId: string }
+interface Side { pass: boolean; kind: string; why: string[] }
+interface Preview {
+  filters: PreviewFilter[];
+  known?: boolean;
+  reason?: string;
+  block?: string;
+  creator?: string;
+  isCreator?: boolean;
+  latchLockedNow?: boolean;
+  latchLockedAfter?: boolean;
+  latchNote?: string;
+  needGross?: string;
+  fresh?: boolean;
+  results?: (PreviewFilter & { chain?: { pass: boolean } | { error: string }; before: Side | null; after: Side | null })[];
+}
+
+/** Tranche templates over the starter unlock circuits (matched by netlist hash server-side, not by name). */
+const PRESETS: { label: string; note: string; tranches: [string, number][] }[] = [
+  { label: 'Two-step 50 / 50', note: 'half on UNLOCK_T1 (≥7 days, LP locked, ≥100 holders), half on UNLOCK_T2 (≥30 days, revenue ≥$10, ≥300 holders, LP locked)', tranches: [['UNLOCK_T1', 50], ['UNLOCK_T2', 50]] },
+  { label: 'Back-loaded 25 / 75', note: 'a quarter early on UNLOCK_T1, the rest on UNLOCK_T2', tranches: [['UNLOCK_T1', 25], ['UNLOCK_T2', 75]] },
+  { label: 'All on UNLOCK_T2', note: 'nothing releases before 30 days and real agent revenue', tranches: [['UNLOCK_T2', 100]] },
+  { label: 'All on UNLOCK_T1', note: 'the lightest schedule: 7 days, LP locked, 100 holders', tranches: [['UNLOCK_T1', 100]] },
+];
 
 export default function LockPage() {
   return (
@@ -19,7 +46,8 @@ export default function LockPage() {
         Tokens are released tranche by tranche, only to the beneficiary, and only when each tranche&apos;s unlock circuit
         passes. After creation nothing can change: no admin, no pause, no circuit swap. Releases are evaluated by the sealed
         LatchEvaluator, never by TapeOut&apos;s upgradeable contracts. Keeping at least the minimum share of supply locked
-        sets <code>LATCH_LOCKED</code>, which stricter filters reward.
+        sets <code>LATCH_LOCKED</code>, which stricter filters reward. Only locks from the wallet recorded as the launch&apos;s creator
+        count toward it. <Link href="/creators">What locking proves, and what it costs</Link>.
       </p>
       {!deployed ? <NotDeployed what="Creating and releasing locks" /> : (<><CreateLock /><MyLocks /></>)}
     </>
@@ -30,8 +58,11 @@ function CreateLock() {
   const { address } = useAccount();
   const pub = usePublicClient();
   const { writeContractAsync } = useWriteContract();
+  const router = useRouter();
   const { filters } = useFilters();
   const unlockFilters = filters.filter((f) => f.nState === 0); // latch filters are rejected as unlock circuits
+  const statefulFilters = filters.filter((f) => f.nState > 0);
+  const [preview, setPreview] = useState<Preview | null>(null);
   const [token, setToken] = useState('');
   const [amount, setAmount] = useState('');
   const [beneficiary, setBeneficiary] = useState('');
@@ -60,6 +91,17 @@ function CreateLock() {
   const ben = (beneficiary || address) as Address | undefined;
   const valid = tok && raw && raw > 0n && ben && isAddress(ben) && bpsSum === 10_000 && tranches.every((t) => t.filterId > 0);
 
+  const rawKey = raw !== undefined ? raw.toString() : '0';
+  useEffect(() => {
+    const q = new URLSearchParams({ ...(tok ? { token: tok } : {}), ...(address ? { wallet: address } : {}), amount: rawKey });
+    const ac = new AbortController();
+    const t = setTimeout(() => {
+      fetch(`/api/lock-preview?${q}`, { signal: ac.signal }).then((r) => r.json()).then(setPreview).catch(() => {});
+    }, 350);
+    return () => { clearTimeout(t); ac.abort(); };
+  }, [tok, address, rawKey]);
+  const starterId = (name: string) => preview?.filters.find((f) => f.starter === name && !f.stateful)?.id;
+
   async function submit() {
     if (!valid || !pub || !tok || raw === undefined || !address) return;
     try {
@@ -76,8 +118,10 @@ function CreateLock() {
         functionName: 'createLock',
         args: [tok, raw, ben!, tranches.map((t) => ({ filterId: BigInt(t.filterId), bps: Math.round(Number(t.pct) * 100) }))],
       });
-      await pub.waitForTransactionReceipt({ hash: h });
-      setStatus(`Locked. Tx ${h}`);
+      const rc = await pub.waitForTransactionReceipt({ hash: h });
+      if (rc.status !== 'success') throw new Error(`createLock reverted (tx ${h})`);
+      setStatus(`Locked. Tx ${h}. Opening the lock page…`);
+      router.push(`/lock/${tok.toLowerCase()}?created=1`);
     } catch (e) {
       setStatus(`Error: ${(e as Error).message.split('\n')[0]}`);
     }
@@ -90,19 +134,33 @@ function CreateLock() {
         <div>
           <label>Token</label>
           <input className="mono" placeholder="0x…" value={token} onChange={(e) => setToken(e.target.value.trim())} />
-          {symbol && <p className="muted small">{symbol} · your balance {balance !== undefined ? fmt(balance, d) : '…'}</p>}
+          {symbol && <p className="muted small">{symbol} · your balance {balance !== undefined ? fmt(balance, d) : '…'} · <Link href={`/lock/${tok!.toLowerCase()}`}>current lock status</Link></p>}
           <label>Amount</label>
           <input className="mono" placeholder="10000000" value={amount} onChange={(e) => setAmount(e.target.value)} />
           <label>Beneficiary (defaults to you)</label>
           <input className="mono" placeholder={address ?? '0x…'} value={beneficiary} onChange={(e) => setBeneficiary(e.target.value.trim())} />
         </div>
         <div>
+          <label>Templates</label>
+          <div className="row" style={{ marginBottom: 10 }}>
+            {PRESETS.map((p) => {
+              const ids = p.tranches.map(([n]) => starterId(n));
+              const ready = ids.every((x) => x !== undefined);
+              return (
+                <button key={p.label} className="ghost small" disabled={!ready} title={p.note}
+                  onClick={() => setTranches(p.tranches.map(([, pct], i) => ({ filterId: ids[i]!, pct: String(pct) })))}>
+                  {p.label}
+                </button>
+              );
+            })}
+          </div>
           <label>Tranches (percentages must sum to 100)</label>
           {tranches.map((t, i) => (
             <div className="row" key={i} style={{ marginBottom: 6 }}>
               <select value={t.filterId} onChange={(e) => setTranches(tranches.map((x, j) => (j === i ? { ...x, filterId: Number(e.target.value) } : x)))} style={{ flex: 2 }}>
                 <option value={0}>Unlock circuit…</option>
                 {unlockFilters.map((f) => <option key={f.id} value={f.id}>#{f.id} {f.name}</option>)}
+                {statefulFilters.map((f) => <option key={f.id} value={f.id} disabled>#{f.id} {f.name} (stateful: rejected)</option>)}
               </select>
               <input className="mono" style={{ flex: 1 }} value={t.pct} onChange={(e) => setTranches(tranches.map((x, j) => (j === i ? { ...x, pct: e.target.value } : x)))} />
               <span className="muted">%</span>
@@ -111,6 +169,12 @@ function CreateLock() {
           ))}
           {tranches.length < 8 && <button className="ghost small" onClick={() => setTranches([...tranches, { filterId: 0, pct: '0' }])}>+ tranche</button>}
           {bpsSum !== 10_000 && <p className="error small">Tranches sum to {bpsSum / 100}%.</p>}
+          {statefulFilters.length > 0 && (
+            <p className="muted small">
+              Stateful (latch) filters such as {statefulFilters.map((f) => f.name).join(', ')} cannot be unlock circuits: LatchLock rejects them
+              (<code>StatefulUnlock</code>) because their answer depends on remembered history, while releases are evaluated statelessly.
+            </p>
+          )}
         </div>
       </div>
       {raw !== undefined && fee !== undefined && bps !== undefined && (
@@ -118,6 +182,7 @@ function CreateLock() {
           Lock {fmt(raw, d)} → {fmt(raw - fee, d)} locked, {fmt(fee, d)} fee ({Number(bps) / 100}%)
         </div>
       )}
+      <PreviewPanel preview={preview} hasToken={Boolean(tok)} />
       <p className="muted small">
         The fee is taken from what the contract actually receives, so tokens with a transfer tax lock slightly less than shown.
       </p>
@@ -125,6 +190,50 @@ function CreateLock() {
         <button className="primary" disabled={!valid || !address} onClick={submit}>Approve & lock</button>
         {status && <span className="small muted mono">{status}</span>}
       </div>
+    </div>
+  );
+}
+
+function PreviewPanel({ preview, hasToken }: { preview: Preview | null; hasToken: boolean }) {
+  if (!hasToken) return null;
+  if (!preview) return <p className="muted small">Reading filters for this token…</p>;
+  if (preview.reason) return <div className="bar warn"><span className="dot amber" />{preview.reason}</div>;
+  if (!preview.results) return null;
+  const changed = preview.results.filter((r) => r.before && r.after && r.before.pass !== r.after.pass);
+  return (
+    <div style={{ marginTop: 16 }}>
+      <div className={`bar ${preview.latchLockedAfter && !preview.latchLockedNow ? 'live' : ''}`}>
+        <span className={`dot ${preview.latchLockedAfter ? '' : 'amber'}`} />
+        {preview.latchNote}
+      </div>
+      <table style={{ marginTop: 10 }}>
+        <thead><tr><th>Filter</th><th>Now</th><th>After this lock</th></tr></thead>
+        <tbody>
+          {preview.results.map((r) => (
+            <tr key={r.id}>
+              <td>{r.name}{r.stateful && <span className="muted small"> · stateful</span>}</td>
+              <td><Verdict s={r.before} /></td>
+              <td><Verdict s={r.after} changed={Boolean(r.before && r.after && r.before.pass !== r.after.pass)} /></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="muted small">
+        Computed from the circuits with the same inputs LatchGate reads at block {preview.block}; the only input a lock can change is LATCH_LOCKED.
+        {changed.length === 0 ? ' This lock changes no filter result.' : ` This lock changes: ${changed.map((c) => c.name).join(', ')}.`}
+        {!preview.fresh && ' The feed is stale right now, so live checks revert until the attestor posts again.'}
+      </p>
+    </div>
+  );
+}
+
+function Verdict({ s, changed }: { s: Side | null; changed?: boolean }) {
+  if (!s) return <span className="muted small">no netlist</span>;
+  return (
+    <div>
+      <span className={s.pass ? 'unlatched' : 'latched'}>{s.pass ? 'passes' : 'latched'}</span>
+      {changed && <span className="chip green" style={{ marginLeft: 6 }}>changes</span>}
+      <div className="muted small">{s.kind === 'unmet' ? 'not met: ' : s.kind === 'reset' ? '' : 'on: '}{s.why.join(' · ')}</div>
     </div>
   );
 }
