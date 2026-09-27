@@ -3,15 +3,15 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { formatUnits, isAddress, parseUnits, type Address } from 'viem';
-import { useAccount, usePublicClient, useReadContract, useReadContracts, useWriteContract } from 'wagmi';
+import { formatUnits, isAddress, parseUnits, zeroAddress, type Address } from 'viem';
+import { useAccount, usePublicClient, useReadContract, useReadContracts, useSwitchChain, useWriteContract } from 'wagmi';
 import { NotDeployed } from '@/components/NotDeployed';
 import { short } from '@/components/Wallet';
 import { erc20Abi, gateAbi, lockAbi } from '@/lib/abi';
 import { DEPLOYMENT, deployed } from '@/lib/config';
 import { useFilters } from '@/lib/hooks';
-
-const fmt = (v: bigint, d: number) => Number(formatUnits(v, d)).toLocaleString('en-US', { maximumFractionDigits: 4 });
+import { approvalStep, blockers, explainRevert, formatAmount, lockedAfterFee, XLAYER_CHAIN_ID } from '@/lib/lockrules';
+import { decodeRevert, lockErrorsAbi } from '@/lib/revert';
 
 interface PreviewFilter { id: number; name: string; starter: string | null; stateful: boolean; circuitId: string }
 interface Side { pass: boolean; kind: string; why: string[] }
@@ -25,7 +25,9 @@ interface Preview {
   latchLockedNow?: boolean;
   latchLockedAfter?: boolean;
   latchNote?: string;
-  needGross?: string;
+  token?: string;
+  minDeposit?: { raw: string; text: string };
+  transfer?: { ok: true } | { ok: false; reason: string; error: string };
   fresh?: boolean;
   results?: (PreviewFilter & { chain?: { pass: boolean } | { error: string }; before: Side | null; after: Side | null })[];
 }
@@ -55,11 +57,12 @@ export default function LockPage() {
 }
 
 function CreateLock() {
-  const { address } = useAccount();
-  const pub = usePublicClient();
+  const { address, chainId } = useAccount();
+  const pub = usePublicClient({ chainId: XLAYER_CHAIN_ID });
   const { writeContractAsync } = useWriteContract();
+  const { switchChain } = useSwitchChain();
   const router = useRouter();
-  const { filters } = useFilters();
+  const { filters, isLoading: filtersLoading } = useFilters();
   const unlockFilters = filters.filter((f) => f.nState === 0); // latch filters are rejected as unlock circuits
   const statefulFilters = filters.filter((f) => f.nState > 0);
   const [preview, setPreview] = useState<Preview | null>(null);
@@ -67,7 +70,9 @@ function CreateLock() {
   const [amount, setAmount] = useState('');
   const [beneficiary, setBeneficiary] = useState('');
   const [tranches, setTranches] = useState<{ filterId: number; pct: string }[]>([{ filterId: 0, pct: '100' }]);
-  const [status, setStatus] = useState<string>('');
+  const [status, setStatus] = useState<{ text: string; tone: 'muted' | 'error' | 'ok' } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [sim, setSim] = useState<{ key: string; ok: boolean; text: string } | null>(null);
 
   const tok = isAddress(token) ? (token as Address) : undefined;
   const meta = useReadContracts({
@@ -75,21 +80,22 @@ function CreateLock() {
       ? [
           { address: tok, abi: erc20Abi, functionName: 'symbol' },
           { address: tok, abi: erc20Abi, functionName: 'decimals' },
-          { address: tok, abi: erc20Abi, functionName: 'balanceOf', args: [address ?? '0x0000000000000000000000000000000000000000'] },
+          { address: tok, abi: erc20Abi, functionName: 'balanceOf', args: [address ?? zeroAddress] },
+          { address: tok, abi: erc20Abi, functionName: 'allowance', args: [address ?? zeroAddress, DEPLOYMENT.lock!] },
         ]
       : [],
     query: { enabled: Boolean(tok) },
   });
   const feeBps = useReadContract({ address: DEPLOYMENT.lock, abi: lockAbi, functionName: 'feeBps' });
-  const [symbol, decimals, balance] = (meta.data ?? []).map((r) => (r.status === 'success' ? r.result : undefined)) as [string?, number?, bigint?];
+  const [symbol, decimals, balance, allowance] = (meta.data ?? []).map((r) => (r.status === 'success' ? r.result : undefined)) as [string?, number?, bigint?, bigint?];
   const d = decimals ?? 18;
+  const sym = symbol ?? 'tokens';
   let raw: bigint | undefined;
-  try { raw = amount ? parseUnits(amount, d) : undefined; } catch { raw = undefined; }
-  const bps = feeBps.data !== undefined ? BigInt(feeBps.data) : undefined;
-  const fee = raw !== undefined && bps !== undefined ? (raw * bps) / 10_000n : undefined;
-  const bpsSum = tranches.reduce((s, t) => s + Math.round(Number(t.pct) * 100), 0);
+  try { raw = amount ? parseUnits(amount.replace(/[,_\s]/g, ''), d) : undefined; } catch { raw = undefined; }
+  const bps = feeBps.data !== undefined ? feeBps.data : undefined;
+  const fee = raw !== undefined && bps !== undefined ? (raw * BigInt(bps)) / 10_000n : undefined;
   const ben = (beneficiary || address) as Address | undefined;
-  const valid = tok && raw && raw > 0n && ben && isAddress(ben) && bpsSum === 10_000 && tranches.every((t) => t.filterId > 0);
+  const trancheInputs = tranches.map((t) => ({ filterId: t.filterId, bps: Math.round(Number(t.pct) * 100) || 0 }));
 
   const rawKey = raw !== undefined ? raw.toString() : '0';
   useEffect(() => {
@@ -101,31 +107,87 @@ function CreateLock() {
     return () => { clearTimeout(t); ac.abort(); };
   }, [tok, address, rawKey]);
   const starterId = (name: string) => preview?.filters.find((f) => f.starter === name && !f.stateful)?.id;
+  const previewFor = preview && tok && preview.token?.toLowerCase() === tok.toLowerCase() ? preview : null;
 
-  async function submit() {
-    if (!valid || !pub || !tok || raw === undefined || !address) return;
-    try {
-      const allowance = await pub.readContract({ address: tok, abi: erc20Abi, functionName: 'allowance', args: [address, DEPLOYMENT.lock!] });
-      if (allowance < raw) {
-        setStatus('Approving…');
-        const h = await writeContractAsync({ address: tok, abi: erc20Abi, functionName: 'approve', args: [DEPLOYMENT.lock!, raw] });
-        await pub.waitForTransactionReceipt({ hash: h });
+  const problems = [
+    ...blockers({
+      connected: Boolean(address),
+      chainId,
+      tokenValid: Boolean(tok),
+      symbol: sym,
+      decimals: d,
+      amount: raw,
+      balance,
+      beneficiaryValid: Boolean(ben && isAddress(ben)),
+      tranches: trancheInputs,
+      filters: filters.map((f) => ({ id: f.id, name: f.name, stateful: f.nState > 0 })),
+      transferable: previewFor?.transfer,
+    }).filter((b) => !(filtersLoading && /not registered/.test(b))),
+    ...(tok && symbol === undefined && !meta.isLoading ? ['This address does not look like an ERC-20 token.'] : []),
+  ];
+  const approval = approvalStep(allowance, raw);
+  const args = tok && raw !== undefined && ben
+    ? ([tok, raw, ben, trancheInputs.map((t) => ({ filterId: BigInt(t.filterId), bps: t.bps }))] as const)
+    : undefined;
+  const simKey = JSON.stringify([tok, rawKey, ben, trancheInputs, String(allowance), address]);
+
+  // Simulate createLock whenever the draft is valid and approved, so the Lock button is only live for a call that succeeds.
+  useEffect(() => {
+    if (problems.length || !args || !pub || !address || (approval !== 'ok' && approval !== 'reapprove-lower')) return;
+    let stale = false;
+    const t = setTimeout(async () => {
+      try {
+        await pub.simulateContract({ account: address, address: DEPLOYMENT.lock!, abi: [...lockAbi, ...lockErrorsAbi], functionName: 'createLock', args });
+        if (!stale) setSim({ key: simKey, ok: true, text: `Simulation passed at the latest block: ${formatAmount(lockedAfterFee(raw!, bps ?? 50), d, sym)} would be locked.` });
+      } catch (e) {
+        const r = decodeRevert(e);
+        if (!stale) setSim({ key: simKey, ok: false, text: explainRevert(r.name, r.args, { symbol: sym, decimals: d, filters: filters.map((f) => ({ id: f.id, name: f.name, stateful: f.nState > 0 })) }) + (r.name ? '' : ` (${r.raw?.slice(0, 10) ?? r.message})`) });
       }
-      setStatus('Creating lock…');
-      const h = await writeContractAsync({
-        address: DEPLOYMENT.lock!,
-        abi: lockAbi,
-        functionName: 'createLock',
-        args: [tok, raw, ben!, tranches.map((t) => ({ filterId: BigInt(t.filterId), bps: Math.round(Number(t.pct) * 100) }))],
-      });
+    }, 400);
+    return () => { stale = true; clearTimeout(t); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [simKey, problems.length, approval]);
+  const simNow = sim && sim.key === simKey ? sim : null;
+
+  const ctx = { symbol: sym, decimals: d, filters: filters.map((f) => ({ id: f.id, name: f.name, stateful: f.nState > 0 })) };
+  const fail = (e: unknown, what: string) => {
+    const r = decodeRevert(e);
+    setStatus({ tone: 'error', text: r.userRejected ? `${what} cancelled in the wallet.` : r.name ? explainRevert(r.name, r.args, ctx) : `${what} failed: ${r.message}` });
+  };
+
+  async function approve() {
+    if (problems.length || !tok || raw === undefined || !pub || !address) return;
+    setBusy(true);
+    try {
+      await pub.simulateContract({ account: address, address: tok, abi: [...erc20Abi, ...lockErrorsAbi], functionName: 'approve', args: [DEPLOYMENT.lock!, raw] });
+      setStatus({ tone: 'muted', text: `Approving exactly ${formatAmount(raw, d, sym)}…` });
+      const h = await writeContractAsync({ address: tok, abi: erc20Abi, functionName: 'approve', args: [DEPLOYMENT.lock!, raw], chainId: XLAYER_CHAIN_ID });
+      const rc = await pub.waitForTransactionReceipt({ hash: h });
+      if (rc.status !== 'success') throw new Error(`approve reverted (tx ${h})`);
+      await meta.refetch();
+      setStatus({ tone: 'ok', text: `Approved ${formatAmount(raw, d, sym)}. Now create the lock.` });
+    } catch (e) { fail(e, 'Approve'); } finally { setBusy(false); }
+  }
+
+  async function lock() {
+    if (problems.length || !args || !pub || !address || !tok) return;
+    setBusy(true);
+    try {
+      // Re-simulate right before prompting: the wallet only ever sees a call that succeeds at the latest block.
+      const { request } = await pub.simulateContract({ account: address, address: DEPLOYMENT.lock!, abi: [...lockAbi, ...lockErrorsAbi], functionName: 'createLock', args });
+      setStatus({ tone: 'muted', text: 'Creating lock…' });
+      const h = await writeContractAsync({ ...request, chainId: XLAYER_CHAIN_ID });
       const rc = await pub.waitForTransactionReceipt({ hash: h });
       if (rc.status !== 'success') throw new Error(`createLock reverted (tx ${h})`);
-      setStatus(`Locked. Tx ${h}. Opening the lock page…`);
+      setStatus({ tone: 'ok', text: `Locked. Tx ${h}. Opening the lock page…` });
       router.push(`/lock/${tok.toLowerCase()}?created=1`);
-    } catch (e) {
-      setStatus(`Error: ${(e as Error).message.split('\n')[0]}`);
-    }
+    } catch (e) { fail(e, 'Lock'); } finally { setBusy(false); }
   }
+
+  const approveLabel = approval === 'reapprove-lower'
+    ? `Reduce approval to exactly ${raw !== undefined ? formatAmount(raw, d, sym) : ''}`
+    : `1 · Approve ${raw !== undefined ? formatAmount(raw, d, sym) : ''}`;
+  const canLock = !problems.length && (approval === 'ok' || approval === 'reapprove-lower') && Boolean(simNow?.ok) && !busy;
 
   return (
     <div className="card" style={{ marginTop: 28 }}>
@@ -134,9 +196,15 @@ function CreateLock() {
         <div>
           <label>Token</label>
           <input className="mono" placeholder="0x…" value={token} onChange={(e) => setToken(e.target.value.trim())} />
-          {symbol && <p className="muted small">{symbol} · your balance {balance !== undefined ? fmt(balance, d) : '…'} · <Link href={`/lock/${tok!.toLowerCase()}`}>current lock status</Link></p>}
+          {symbol && (
+            <p className="muted small">
+              {symbol} · your balance {balance !== undefined ? formatAmount(balance, d, symbol) : '…'} · approved for LatchLock{' '}
+              {allowance !== undefined ? formatAmount(allowance, d, symbol) : '…'} · <Link href={`/lock/${tok!.toLowerCase()}`}>current lock status</Link>
+            </p>
+          )}
           <label>Amount</label>
-          <input className="mono" placeholder="10000000" value={amount} onChange={(e) => setAmount(e.target.value)} />
+          <input className="mono" placeholder="10,000,000" value={amount} onChange={(e) => setAmount(e.target.value)} />
+          {balance !== undefined && balance > 0n && <button className="linkish small" onClick={() => setAmount(formatUnits(balance, d))}>Use full balance</button>}
           <label>Beneficiary (defaults to you)</label>
           <input className="mono" placeholder={address ?? '0x…'} value={beneficiary} onChange={(e) => setBeneficiary(e.target.value.trim())} />
         </div>
@@ -168,7 +236,6 @@ function CreateLock() {
             </div>
           ))}
           {tranches.length < 8 && <button className="ghost small" onClick={() => setTranches([...tranches, { filterId: 0, pct: '0' }])}>+ tranche</button>}
-          {bpsSum !== 10_000 && <p className="error small">Tranches sum to {bpsSum / 100}%.</p>}
           {statefulFilters.length > 0 && (
             <p className="muted small">
               Stateful (latch) filters such as {statefulFilters.map((f) => f.name).join(', ')} cannot be unlock circuits: LatchLock rejects them
@@ -177,19 +244,30 @@ function CreateLock() {
           )}
         </div>
       </div>
-      {raw !== undefined && fee !== undefined && bps !== undefined && (
+      {raw !== undefined && raw > 0n && fee !== undefined && bps !== undefined && (
         <div className="fee-line">
-          Lock {fmt(raw, d)} → {fmt(raw - fee, d)} locked, {fmt(fee, d)} fee ({Number(bps) / 100}%)
+          Lock {formatAmount(raw, d, sym)} → {formatAmount(raw - fee, d, sym)} locked, {formatAmount(fee, d, sym)} fee ({bps / 100}%)
         </div>
       )}
-      <PreviewPanel preview={preview} hasToken={Boolean(tok)} />
-      <p className="muted small">
-        The fee is taken from what the contract actually receives, so tokens with a transfer tax lock slightly less than shown.
-      </p>
-      <div className="row">
-        <button className="primary" disabled={!valid || !address} onClick={submit}>Approve & lock</button>
-        {status && <span className="small muted mono">{status}</span>}
+      <PreviewPanel preview={previewFor} hasToken={Boolean(tok)} />
+      {problems.length > 0 && (
+        <ul className="reasons" style={{ margin: '14px 0' }}>
+          {problems.map((p) => <li key={p} className="no">{p}</li>)}
+        </ul>
+      )}
+      {!problems.length && simNow && <p className={`small ${simNow.ok ? 'ok' : 'error'}`}>{simNow.text}</p>}
+      <div className="row" style={{ marginTop: 12 }}>
+        {address && chainId !== XLAYER_CHAIN_ID && <button className="primary" onClick={() => switchChain({ chainId: XLAYER_CHAIN_ID })}>Switch to X Layer</button>}
+        {(approval === 'needed' || approval === 'reapprove-lower') && (
+          <button className={approval === 'needed' ? 'primary' : 'ghost'} disabled={problems.length > 0 || busy} onClick={approve}>{approveLabel}</button>
+        )}
+        <button className="primary" disabled={!canLock} onClick={lock}>{approval === 'needed' ? '2 · Lock' : 'Lock'}</button>
+        {status && <span className={`small mono ${status.tone === 'error' ? 'error' : status.tone === 'ok' ? 'ok' : 'muted'}`}>{status.text}</span>}
       </div>
+      <p className="muted small">
+        Nothing is sent to your wallet until every check above passes and the lock has been simulated against the latest block.
+        The fee is taken from what LatchLock actually receives.
+      </p>
     </div>
   );
 }
@@ -212,8 +290,8 @@ function PreviewPanel({ preview, hasToken }: { preview: Preview | null; hasToken
           {preview.results.map((r) => (
             <tr key={r.id}>
               <td>{r.name}{r.stateful && <span className="muted small"> · stateful</span>}</td>
-              <td><Verdict s={r.before} /></td>
-              <td><Verdict s={r.after} changed={Boolean(r.before && r.after && r.before.pass !== r.after.pass)} /></td>
+              <td><Verdict s={r.before} stateful={r.stateful} /></td>
+              <td><Verdict s={r.after} stateful={r.stateful} changed={Boolean(r.before && r.after && r.before.pass !== r.after.pass)} /></td>
             </tr>
           ))}
         </tbody>
@@ -227,11 +305,11 @@ function PreviewPanel({ preview, hasToken }: { preview: Preview | null; hasToken
   );
 }
 
-function Verdict({ s, changed }: { s: Side | null; changed?: boolean }) {
+function Verdict({ s, changed, stateful }: { s: Side | null; changed?: boolean; stateful?: boolean }) {
   if (!s) return <span className="muted small">no netlist</span>;
   return (
     <div>
-      <span className={s.pass ? 'unlatched' : 'latched'}>{s.pass ? 'passes' : 'latched'}</span>
+      <span className={s.pass ? 'unlatched' : 'latched'}>{s.pass ? 'passes' : stateful ? 'latched' : 'fails'}</span>
       {changed && <span className="chip green" style={{ marginLeft: 6 }}>changes</span>}
       <div className="muted small">{s.kind === 'unmet' ? 'not met: ' : s.kind === 'reset' ? '' : 'on: '}{s.why.join(' · ')}</div>
     </div>
@@ -266,16 +344,27 @@ function LockCard({ id, lock, tranches }: {
   const pub = usePublicClient();
   const { writeContractAsync } = useWriteContract();
   const [msg, setMsg] = useState('');
+  const { address } = useAccount();
   const checks = useReadContracts({
     contracts: tranches.map((t) => ({ address: DEPLOYMENT.gate!, abi: gateAbi, functionName: 'checkLocal' as const, args: [lock.token, t.filterId] as const })),
   });
+  const meta = useReadContracts({
+    contracts: [
+      { address: lock.token, abi: erc20Abi, functionName: 'symbol' },
+      { address: lock.token, abi: erc20Abi, functionName: 'decimals' },
+    ],
+  });
+  const sym = meta.data?.[0]?.status === 'success' ? (meta.data[0].result as string) : '';
+  const dec = meta.data?.[1]?.status === 'success' ? (meta.data[1].result as number) : 18;
   async function release(idx: number) {
     try {
-      const h = await writeContractAsync({ address: DEPLOYMENT.lock!, abi: lockAbi, functionName: 'release', args: [id, BigInt(idx)] });
-      await pub!.waitForTransactionReceipt({ hash: h });
-      setMsg(`Released. Tx ${h}`);
+      const { request } = await pub!.simulateContract({ account: address, address: DEPLOYMENT.lock!, abi: [...lockAbi, ...lockErrorsAbi], functionName: 'release', args: [id, BigInt(idx)] });
+      const h = await writeContractAsync(request);
+      const rc = await pub!.waitForTransactionReceipt({ hash: h });
+      setMsg(rc.status === 'success' ? `Released. Tx ${h}` : `Release reverted (tx ${h}).`);
     } catch (e) {
-      setMsg(`Error: ${(e as Error).message.split('\n')[0]}`);
+      const r = decodeRevert(e);
+      setMsg(r.userRejected ? 'Release cancelled in the wallet.' : r.name ? explainRevert(r.name, r.args, { symbol: sym, decimals: dec }) : `Release failed: ${r.message}`);
     }
   }
   return (
@@ -289,10 +378,10 @@ function LockCard({ id, lock, tranches }: {
             const pass = c?.status === 'success' ? c.result[0] : undefined;
             return (
               <tr key={i}>
-                <td>{i}</td>
+                <td>{i + 1}</td>
                 <td>#{t.filterId.toString()} · {t.bps / 100}%</td>
-                <td className="mono">{t.amount.toString()}</td>
-                <td>{t.released ? <span className="muted">released</span> : pass === undefined ? <span className="muted">{c?.status === 'failure' ? 'feed stale' : '…'}</span> : pass ? <span className="unlatched">passes</span> : <span className="latched">latched</span>}</td>
+                <td>{formatAmount(t.amount, dec, sym)}</td>
+                <td>{t.released ? <span className="muted">released</span> : pass === undefined ? <span className="muted">{c?.status === 'failure' ? 'feed stale' : '…'}</span> : pass ? <span className="unlatched">passes</span> : <span className="latched">fails</span>}</td>
                 <td>{!t.released && <button className="primary small" disabled={!pass} onClick={() => release(i)}>Release</button>}</td>
               </tr>
             );

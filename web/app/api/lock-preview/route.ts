@@ -1,15 +1,45 @@
 // What a proposed lock would change: filter results now vs. after the lock, computed with the same circuits and the
 // same LATCH_LOCKED rule LatchGate applies (depositor must be the recorded creator; still-locked ≥ minLockBps of supply).
 import { NextResponse } from 'next/server';
-import { isAddress, type Address } from 'viem';
+import { decodeErrorResult, encodeFunctionData, isAddress, parseAbi, type Address, type Hex } from 'viem';
 import { BITS } from '@latch/compiler';
-import { deployed } from '@/lib/config';
+import { DEPLOYMENT, deployed } from '@/lib/config';
+import { clearsThreshold, explainRevert, formatAmount, lockedAfterFee, minDepositForThreshold, pctFloor } from '@/lib/lockrules';
 import { explainFilter } from '@/lib/lockstatus';
-import { parseToken, readFilters, readToken } from '@/lib/lockview';
+import { client, ignixStatus, parseToken, readFilters, readToken } from '@/lib/lockview';
 
 export const dynamic = 'force-dynamic';
 
 const LATCH_LOCKED = 1 << BITS.LATCH_LOCKED;
+const probeAbi = parseAbi([
+  'function transfer(address, uint256) returns (bool)',
+  'error CurveOnly()',
+  'error ERC20InsufficientBalance(address sender, uint256 balance, uint256 needed)',
+  'error ERC20InvalidReceiver(address receiver)',
+]);
+
+/** Can this wallet move the token into LatchLock at all? Simulates a 1-unit transfer from the wallet (eth_call, no tx). */
+async function probeTransfer(token: Address, wallet: Address, symbol: string) {
+  try {
+    const data = encodeFunctionData({ abi: probeAbi, functionName: 'transfer', args: [DEPLOYMENT.lock!, 1n] });
+    await client.call({ account: wallet, to: token, data });
+    return { ok: true as const };
+  } catch (e) {
+    const raw = findRevertData(e);
+    let name: string | undefined;
+    try { if (raw) name = decodeErrorResult({ abi: probeAbi, data: raw }).errorName; } catch { /* unknown selector */ }
+    if (name === 'ERC20InsufficientBalance') return { ok: true as const }; // no balance: reported by the amount check instead
+    return { ok: false as const, error: name ?? raw?.slice(0, 10) ?? 'reverted', reason: name ? explainRevert(name, [], { symbol }) : `${symbol} refuses transfers from this wallet to LatchLock (revert ${raw?.slice(0, 10) ?? 'without data'}), so it cannot be locked.` };
+  }
+}
+function findRevertData(e: unknown): Hex | undefined {
+  let cur: any = e;
+  for (let i = 0; cur && i < 8; i++, cur = cur.cause) {
+    const d = cur.data?.data ?? cur.data;
+    if (typeof d === 'string' && d.startsWith('0x')) return d as Hex;
+  }
+  return undefined;
+}
 const filterJson = (f: Awaited<ReturnType<typeof readFilters>>[number]) => ({ id: f.id, name: f.name, starter: f.starter, stateful: f.stateful, circuitId: String(f.circuitId) });
 
 export async function GET(req: Request) {
@@ -25,22 +55,31 @@ export async function GET(req: Request) {
   const base = { token, block: String(v.block), known: v.known, filters: v.filters.map(filterJson), symbol: v.symbol, decimals: v.decimals };
   if (!v.known || v.inputs === null) return NextResponse.json({ ...base, reason: 'Not registered in the Nandout feed: no filter can evaluate this token, and a lock would not set LATCH_LOCKED.' });
 
-  const received = amount - (amount * BigInt(v.feeBps)) / 10_000n;
+  const sym = v.symbol ?? 'tokens';
+  const f = (x: bigint, round: 'down' | 'up' = 'down') => formatAmount(x, v.decimals, sym, round);
+  const [transfer, ignix] = await Promise.all([
+    wallet && isAddress(wallet) ? probeTransfer(token, wallet as Address, sym) : Promise.resolve(undefined),
+    ignixStatus(token),
+  ]);
+  if (transfer && !transfer.ok && transfer.error === 'CurveOnly' && ignix.progress !== null) {
+    transfer.reason += ` It is ${Math.round(ignix.progress * 100)}% of the way along its curve.`;
+  }
+
+  const locked = lockedAfterFee(amount, v.feeBps);
   const isCreator = Boolean(wallet && isAddress(wallet) && v.creator && wallet.toLowerCase() === v.creator.toLowerCase());
-  const lockedAfter = v.creatorLocked + (isCreator ? received : 0n);
+  const lockedAfter = v.creatorLocked + (isCreator ? locked : 0n);
   const supply = v.totalSupply ?? 0n;
-  const clears = supply > 0n && lockedAfter * 10_000n >= supply * BigInt(v.minLockBps);
+  const clears = clearsThreshold(lockedAfter, supply, v.minLockBps);
   const after = clears ? v.inputs | LATCH_LOCKED : v.inputs;
-  // Smallest deposit (before the fee) that would clear the threshold for the creator.
-  const need = supply * BigInt(v.minLockBps) / 10_000n - v.creatorLocked;
-  const needGross = need > 0n ? (need * 10_000n + BigInt(10_000 - v.feeBps) - 1n) / BigInt(10_000 - v.feeBps) : 0n;
+  const need = minDepositForThreshold(supply, v.minLockBps, v.creatorLocked, v.feeBps);
+  const thr = `${v.minLockBps / 100}%`;
 
   let latchNote: string;
   if (v.latchLocked) latchNote = 'LATCH_LOCKED is already on for this token.';
   else if (!wallet || !isAddress(wallet)) latchNote = 'Connect the creator wallet to see whether this lock turns on LATCH_LOCKED.';
   else if (!isCreator) latchNote = `This wallet is not the creator recorded for this launch (${v.creator}). Its lock is valid and binding, but it does not turn on LATCH_LOCKED.`;
-  else if (clears) latchNote = `This lock takes the creator to ${Number((lockedAfter * 10_000n) / (supply || 1n)) / 100}% of supply locked, at or above ${v.minLockBps / 100}%, so LATCH_LOCKED turns on.`;
-  else latchNote = `After this lock the creator would have ${Number((lockedAfter * 10_000n) / (supply || 1n)) / 100}% of supply locked, below ${v.minLockBps / 100}%. LATCH_LOCKED stays off; depositing at least ${needGross.toString()} (raw units, fee included) would turn it on.`;
+  else if (clears) latchNote = `This lock takes the creator to ${pctFloor(lockedAfter, supply)}% of supply locked (${f(lockedAfter)}), at or above ${thr}, so LATCH_LOCKED turns on.`;
+  else latchNote = `Does not clear the ${thr} threshold: after this lock the creator would have ${pctFloor(lockedAfter, supply)}% of supply locked (${f(lockedAfter)}). LATCH_LOCKED stays off. Depositing at least ${f(need, 'up')} (0.5% fee included) would turn it on.`;
 
   const results = v.filters.map((f) => {
     const prev = v.prevPass[f.id] ?? 0;
@@ -56,7 +95,9 @@ export async function GET(req: Request) {
     latchLockedNow: v.latchLocked,
     latchLockedAfter: clears,
     latchNote,
-    needGross: needGross.toString(),
+    minDeposit: { raw: need.toString(), text: f(need, 'up') },
+    transfer,
+    ignix,
     fresh: v.fresh,
     results,
   });

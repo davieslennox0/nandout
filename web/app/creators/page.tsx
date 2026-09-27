@@ -76,6 +76,7 @@ export default async function CreatorsPage() {
       <div className="section-label">Before you lock</div>
       <div className="card">
         <ul className="reasons">
+          <li className="no">Your token must have graduated from its Ignix bonding curve. Before graduation Ignix tokens cannot be transferred at all (the token reverts with <code>CurveOnly()</code>), so they cannot be locked.</li>
           <li className="no">Only the wallet Ignix recorded as your launch&apos;s creator can earn LATCH_LOCKED. A lock from any other wallet is still binding, but does not set the bit.</li>
           <li className="no">Most Ignix creators hold little or none of their token in the creator wallet. If that is you, there is nothing meaningful to lock, and the lock page will say so.</li>
           <li className="no">Conditions like LP locked, holder counts and revenue come from Nandout&apos;s attestor. Releases need a fresh feed; if the attestor stops, releases wait until it posts again. Your tokens are never at risk from that, only delayed.</li>

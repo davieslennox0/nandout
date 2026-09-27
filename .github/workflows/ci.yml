@@ -33,6 +33,8 @@ jobs:
       - run: pnpm --filter @latch/attestor typecheck
       - run: pnpm --filter @latch/agent test
       - run: pnpm --filter @latch/agent typecheck
+      - name: Web lock rules (validation, threshold math, formatting)
+        run: pnpm --filter @latch/web test
 
   contracts:
     name: contracts (forge)

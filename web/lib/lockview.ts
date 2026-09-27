@@ -4,7 +4,7 @@ import { compile, decode as decodeNetlist, N_IN, N_OUT, parseCircuit, STARTERS, 
 import { createPublicClient, hexToBytes, http, isAddress, parseAbi, type Address, type Hex } from 'viem';
 import { xLayer } from 'viem/chains';
 import { gateAbi, lockAbi } from './abi';
-import { DEPLOYMENT, RPC } from './config';
+import { DEPLOYMENT, IGNIX_API, RPC } from './config';
 
 const feedAbi = parseAbi([
   'function getBits(address) view returns (uint16 bits, uint64 updatedAt, uint64 launchTime, address creator)',
@@ -220,3 +220,12 @@ export const parseToken = (s: string): Address | null => (isAddress(s) ? (s.toLo
 
 /** Decoded netlist for a third-party filter, so the explainer can reason about it without a DSL. */
 export const netlistOf = (f: FilterView) => (f.netlist ? decodeNetlist(hexToBytes(f.netlist), N_IN, N_OUT) : null);
+
+/** Ignix bonding-curve status. Pre-graduation Ignix tokens revert CurveOnly() on any transfer, so they cannot be locked. */
+export async function ignixStatus(token: Address): Promise<{ graduated: boolean | null; progress: number | null }> {
+  try {
+    const r = await fetch(`${IGNIX_API}/v1/launches/${token}`, { signal: AbortSignal.timeout(4000), next: { revalidate: 60 } });
+    const d = (await r.json())?.data;
+    return { graduated: typeof d?.graduated === 'boolean' ? d.graduated : null, progress: typeof d?.progress === 'number' ? d.progress : null };
+  } catch { return { graduated: null, progress: null }; }
+}

@@ -8,7 +8,7 @@ import { BIT_LABELS, BIT_NAMES, isOnchain } from '@/lib/bits';
 import { DEPLOYMENT, deployed, EXPLORER, IGNIX_LAUNCH_URL } from '@/lib/config';
 import { fmtDuration, has, secondsUntil, type Explained } from '@/lib/explain';
 import { explainFilter, pctOf, summarize, trancheStatus, type Summary } from '@/lib/lockstatus';
-import { parseToken, readToken, type TokenView } from '@/lib/lockview';
+import { ignixStatus, parseToken, readToken, type TokenView } from '@/lib/lockview';
 
 export const revalidate = 30;
 
@@ -65,6 +65,7 @@ export default async function LockStatusPage({ params, searchParams }: { params:
 
   const s = summarize(v);
   const sym = v.symbol ?? '?';
+  const curve = await ignixStatus(v.token);
   const d = v.decimals;
   const inputs = v.inputs ?? 0;
   const combinational = v.filters.filter((f) => !f.stateful);
@@ -121,8 +122,11 @@ export default async function LockStatusPage({ params, searchParams }: { params:
       </div>
       {v.locks.length === 0 && (
         <div className="card empty">
-          Nothing is locked for ${sym}. The creator wallet can lock tokens from <Link href="/lock">/lock</Link>; locking ≥ {s.thresholdPct}% of supply
-          turns on LATCH_LOCKED. <Link href="/creators">What locking proves</Link>.
+          Nothing is locked for ${sym}.{' '}
+          {curve.graduated === false
+            ? <>It is still on its Ignix bonding curve{curve.progress !== null ? ` (${Math.round(curve.progress * 100)}%)` : ''}, and Ignix tokens cannot be transferred until they graduate, so it cannot be locked yet.</>
+            : <>The creator wallet can lock tokens from <Link href="/lock">/lock</Link>; locking ≥ {s.thresholdPct}% of supply turns on LATCH_LOCKED.</>}{' '}
+          <Link href="/creators">What locking proves</Link>.
         </div>
       )}
       {[...s.creatorLocks, ...s.otherLocks].map((l) => (
@@ -168,7 +172,7 @@ export default async function LockStatusPage({ params, searchParams }: { params:
             <div className="card" key={f.id}>
               <div className="row" style={{ justifyContent: 'space-between', gap: 8 }}>
                 <h3 style={{ margin: 0 }}>{f.name}</h3>
-                <PassChip chain={v.checks[f.id]} ex={ex} />
+                <PassChip chain={v.checks[f.id]} ex={ex} stateful={f.stateful} />
               </div>
               <p className="small muted" style={{ margin: '6px 0' }}>
                 filter #{f.id} · TapeOut #{String(f.circuitId)} · {f.gateCount} gates{f.stateful ? ' · stateful (latch)' : ''}
@@ -224,13 +228,13 @@ function Snapshot({ v }: { v: TokenView }) {
   );
 }
 
-function PassChip({ chain, ex }: { chain: TokenView['checks'][number] | undefined; ex: Explained | null }) {
+function PassChip({ chain, ex, stateful }: { chain: TokenView['checks'][number] | undefined; ex: Explained | null; stateful?: boolean }) {
   if (!chain) return <span className="chip">not checked</span>;
   if ('error' in chain) return <span className="chip amber">{chain.error === 'FeedStale' ? 'feed stale: no answer' : `check ${chain.error}`}</span>;
   const disagree = ex && ex.pass !== chain.pass;
   return (
     <span className={`chip ${chain.pass ? 'green' : 'amber'}`} title={disagree ? 'The on-chain result differs from the reference rule; the chain result is authoritative.' : undefined}>
-      {chain.pass ? 'passes' : 'latched'}{disagree ? ' · differs from rule' : ''}
+      {chain.pass ? 'passes' : stateful ? 'latched' : 'fails'}{disagree ? ' · differs from rule' : ''}
     </span>
   );
 }
