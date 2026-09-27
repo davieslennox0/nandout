@@ -99,26 +99,24 @@ export async function indexTransfers(
   const byToken = new Map(launches.map((l) => [l.tokenAddress, l]));
   const notASell = new Set<string>([...BURN_ADDRESSES, ...(latchLock ? [latchLock.toLowerCase()] : [])]);
 
-  // Tokens already in the state resume at indexedTo+1 (grouped exactly). New tokens share one bucket starting at the
-  // earliest creation among them: a token has no transfers before its creation, so the extra blocks are harmless.
-  const groups = new Map<number, Address[]>();
-  const fresh: Address[] = [];
-  let freshFrom = Infinity;
+  // One scan from the earliest block any token still needs, applying each log only if it is past that token's own
+  // indexedTo. Tokens join and leave Ignix's capped index at different times, so their indexedTo differ; per-token
+  // skipping keeps balances exact (nothing counted twice) without one scan per distinct height. New tokens have no
+  // indexedTo and had no transfers before their creation, so everything from their creation onward applies.
+  const prevIndexedTo = new Map<string, number>();
+  const pending: Address[] = [];
+  let from = Infinity;
   for (const l of launches) {
     const upTo = state.indexedTo[l.tokenAddress];
-    if (upTo === undefined) {
-      fresh.push(l.tokenAddress);
-      freshFrom = Math.min(freshFrom, blockOf(l));
-    } else if (upTo < toBlock) {
-      groups.set(upTo + 1, [...(groups.get(upTo + 1) ?? []), l.tokenAddress]);
-    }
+    if (upTo !== undefined) prevIndexedTo.set(l.tokenAddress, upTo);
+    if (upTo === undefined) { pending.push(l.tokenAddress); from = Math.min(from, blockOf(l)); }
+    else if (upTo < toBlock) { pending.push(l.tokenAddress); from = Math.min(from, upTo + 1); }
   }
-  if (fresh.length) groups.set(freshFrom, [...(groups.get(freshFrom) ?? []), ...fresh]);
 
   const jobs: { addresses: Address[]; from: number; to: number }[] = [];
-  for (const [from, list] of groups) {
-    for (let i = 0; i < list.length; i += RPC.logAddresses) {
-      const batch = list.slice(i, i + RPC.logAddresses);
+  if (pending.length) {
+    for (let i = 0; i < pending.length; i += RPC.logAddresses) {
+      const batch = pending.slice(i, i + RPC.logAddresses);
       for (let b = from; b <= toBlock; b += RPC.logRange) jobs.push({ addresses: batch, from: b, to: Math.min(toBlock, b + RPC.logRange - 1) });
     }
   }
@@ -130,6 +128,8 @@ export async function indexTransfers(
     const token = l.address.toLowerCase() as Address;
     const launch = byToken.get(token);
     if (!launch) return;
+    const upTo = prevIndexedTo.get(token);
+    if (upTo !== undefined && Number(l.blockNumber) <= upTo) return; // already counted in an earlier cycle
     const from = `0x${l.topics[1].slice(26)}` as Address;
     const to = `0x${l.topics[2].slice(26)}` as Address;
     const v = BigInt(l.data === '0x' ? 0 : l.data);

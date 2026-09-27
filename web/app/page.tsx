@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { LaunchList } from '@/components/LaunchList';
 import { deployed } from '@/lib/config';
 import { fetchLaunches, rank, toRow } from '@/lib/ignix';
+import { outsideRows, readRegistry } from '@/lib/registry';
 
 export const revalidate = 60;
 
@@ -16,6 +17,7 @@ const circuits = Object.entries(STARTERS).map(([name, dsl]) => compile(name, dsl
 
 export default async function HomePage() {
   let launches;
+  const reg = await readRegistry();
   try {
     launches = rank(await fetchLaunches());
   } catch (e) {
@@ -45,7 +47,7 @@ export default async function HomePage() {
         <Link href="/docs" className="btn ghost">Integrate</Link>
       </div>
       <div className="stats">
-        <div><b>{launches.length.toLocaleString()}</b><span>Ignix launches</span></div>
+        <div><b>{(launches.length + (reg?.outside.length ?? 0)).toLocaleString()}</b><span>Ignix launches attested</span></div>
         <div><b>{graduated}</b><span>graduated to a pool</span></div>
         <div><b>{linked}</b><span>linked to an OKX.AI agent</span></div>
         <div><b>{holders100}</b><span>with 100+ holders</span></div>
@@ -72,7 +74,12 @@ export default async function HomePage() {
         ))}
       </div>
 
-      <LaunchList initial={launches.slice(0, 60).map(toRow)} total={launches.length} />
+      <LaunchList
+        initial={launches.slice(0, 60).map(toRow)}
+        total={launches.length + (reg?.outside.length ?? 0)}
+        cycleAt={reg?.cycleAt ?? null}
+        outsideCount={reg?.outside.length ?? 0}
+      />
 
       <div className="section-label">How it works</div>
       <div className="steps">

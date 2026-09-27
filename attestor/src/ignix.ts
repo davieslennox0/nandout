@@ -18,6 +18,7 @@ export interface Launch {
   taxRouter: Address | null;
   splitter: Address | null;
   holders: number;
+  image?: string | null;
   asp: { id: number; name: string; matched: string; rev: number | null } | null;
 }
 

@@ -25,6 +25,8 @@ export interface Row {
   a: number | null; // agent id
   r: number | null; // agent revenue
   i: string | null; // image
+  x?: boolean; // outside Ignix's capped index (kept by Nandout's attestor registry)
+  f?: number | null; // unix seconds the Ignix API data was last refreshed (out-of-index rows)
 }
 
 /** Ignix public launch index (docs/RECON.md §2). Cached for 60 s on the server. */

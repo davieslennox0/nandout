@@ -85,6 +85,18 @@ both results and exposes any divergence.
 **LatchGate:** no owner. `check`/`checkMany` call the live TapeOut circuit (deep integration, eval gas-capped).
 `checkLocal` evaluates the snapshot through `LatchEvaluator`. `verify` returns both and exposes any divergence.
 
+**Known gap: feed freshness is global, not per token.** `LatchFeed.isFresh()` proves the attestor posted recently;
+it does not prove that every token was re-evaluated. `getBits` does return a per-token `updatedAt`, but it only moves when a
+token's bits change, and the deployed LatchGate/LatchLock (immutable) check only the global flag. So a token the attestor
+stopped evaluating would keep old bits while the feed reads fresh. This became real when Ignix's `/v1/launches` started
+returning only the newest 5,000 launches (page/limit ignored): older launches silently dropped out of the attestor's view.
+Mitigation, not a contract fix: the attestor keeps a durable registry of every launch it has ever seen, recomputes the
+on-chain bits (holders, top-10, dev outflows, LP) of all of them every cycle, refreshes out-of-index launches' Ignix
+fields via `/v1/launches/{token}` (tokens backing a lock every cycle, the rest round-robin), and publishes per-token
+freshness, shown on the Launches page. Age bits are unaffected: LatchGate computes them on-chain from the write-once launch
+time. Enforcing per-token staleness on-chain would need a new LatchGate/LatchLock, which we have chosen not to redeploy
+before the deadline.
+
 **LatchFeed:** the attestor-trust boundary. Attestors report agent/revenue/LP/holder/dev-sell bits. The owner (the Latch
 deploy wallet, published at deploy) can only add or remove attestors. `maxAge` is immutable. `LATCH_LOCKED` and
 `AGE_*` can't be attested: LatchGate computes them on-chain. Launch time and creator are write-once.

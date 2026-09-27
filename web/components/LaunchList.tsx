@@ -22,7 +22,13 @@ function TokenMark({ r }: { r: Row }) {
   );
 }
 
-export function LaunchList({ initial, total }: { initial: Row[]; total: number }) {
+const ago = (sec: number | null | undefined) => {
+  if (!sec) return 'never';
+  const m = Math.max(0, Math.round((Date.now() / 1000 - sec) / 60));
+  return m < 60 ? `${m}m ago` : m < 48 * 60 ? `${Math.round(m / 60)}h ago` : `${Math.round(m / 1440)}d ago`;
+};
+
+export function LaunchList({ initial, total, cycleAt, outsideCount }: { initial: Row[]; total: number; cycleAt: number | null; outsideCount: number }) {
   const [rows, setRows] = useState<Row[]>(initial);
   const [full, setFull] = useState(false);
   const [size, setSize] = useState<number>(15);
@@ -119,9 +125,11 @@ export function LaunchList({ initial, total }: { initial: Row[]; total: number }
               <span className="hide-sm">
                 <span className="chip">{r.g ? `Pool · ${r.v}` : 'Curve'}</span>
                 {r.a !== null && <div className="muted small" style={{ marginTop: 4 }}>agent #{r.a}{r.r ? ` · $${r.r}` : ''}</div>}
+                {r.x && <div className="muted small" style={{ marginTop: 4 }} title="Ignix's index returns only the newest 5,000 launches; Nandout keeps attesting older ones and refreshes their Ignix data itself.">outside Ignix index · Ignix data {ago(r.f)}</div>}
               </span>
               <span>
                 {!deployed || !st ? <span className="muted">—</span> : st.pass ? <span className="chip green">Unlatched</span> : <span className="chip amber">Latched</span>}
+                {cycleAt && <div className="muted small" style={{ marginTop: 4 }}>attested {ago(cycleAt)}</div>}
               </span>
               <span className="bits bits-cell">
                 {st ? decode(st.word).map((b) => (
@@ -136,6 +144,7 @@ export function LaunchList({ initial, total }: { initial: Row[]; total: number }
         <span>
           Showing {visible.length.toLocaleString()} of {(full ? filtered.length : total).toLocaleString()} launches · graduated,
           agent-linked and most-held first
+          {outsideCount > 0 && ` · ${outsideCount} older launches are outside Ignix's 5,000-item index and still attested (shown under All/search)`}
         </span>
         {size !== 0 && visible.length < filtered.length && (
           <button className="small ghost" onClick={() => setSize(SIZES.find((n) => n > size) ?? 0)}>

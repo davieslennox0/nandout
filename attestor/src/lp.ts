@@ -68,7 +68,8 @@ export async function readLp(launches: Launch[], state: LpState): Promise<Map<Ad
   return out;
 }
 
-function finish(state: LpState, token: Address, venue: 'v2' | 'v4', locked: bigint, supply: bigint | null, holder: string | null): LpInfo {
+/** Exported for tests. LP_PULLED is monotonic: once recorded in `state.pulled` it is never cleared. */
+export function finish(state: LpState, token: Address, venue: 'v2' | 'v4', locked: bigint, supply: bigint | null, holder: string | null): LpInfo {
   const prev = BigInt(state.peak[token] ?? '0');
   const peak = locked > prev ? locked : prev;
   state.peak[token] = peak.toString();

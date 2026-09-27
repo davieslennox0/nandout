@@ -6,6 +6,7 @@ export PATH="/root/.local/share/fnm/node-versions/v22.23.1/installation/bin:/usr
 exec 9>/tmp/nandout-attestor.lock
 flock -n 9 || { echo "$(date -Is) previous cycle still running"; exit 0; }
 set -a; . "$ROOT/.env"; set +a
+export ATTEST_PUBLIC_DIR=/srv/nandout/attest # per-token freshness + out-of-index launches, read by the web app
 cd "$ROOT/attestor"
 echo "$(date -Is) cycle start"
 node --max-old-space-size=700 --import tsx src/cli.ts --feed-rpc "$XLAYER_RPC_URL" --deployment "$ROOT/contracts/deployments/196.json" \
