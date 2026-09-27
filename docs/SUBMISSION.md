@@ -36,3 +36,14 @@ concluded "no code on X Layer" because the BSC addresses were checked, while the
 `0xd6efb7ad…adb6` and DomainBinding `0x68809fd2…66f9`. Publishing chain-specific addresses in the SPEC, and sealing the
 store and payment contracts (today an EOA can upgrade them; TapeKit's pin is the only guard), would make DeWEB something
 other projects can build on without reverse-engineering it.
+
+## Ecosystem findings (with receipts)
+
+- **Ignix `/v1/launches` is capped at the newest 5,000 launches and ignores `page`, `limit`, `offset`, `cursor` and `skip`**
+  (page 2 returns the same 5,000 as page 1). Any integrator reading only the index silently loses older launches. Nandout
+  found this in its own attestor (45 launches had dropped out), fixed it with a durable launch registry refreshed via
+  `/v1/launches/{token}`, and reported it to Ignix.
+- **TapeKit issue #6 is a false negative.** It reports "no SiteRegistry / DomainBinding code on X Layer" because it checked
+  the BSC addresses. On X Layer they live at SiteRegistry `0xd6efb7adcc9c83dc4924ad56f6a8e4e969b9adb6` and DomainBinding
+  `0x68809fd2fb343aa57d0aeb7f33defe477c9666f9` (in TapeKit's own kernel config, verified 2026-09-19). Nandout used them to
+  publish its on-chain mirror at https://1-2-230.tapekit.org.
