@@ -265,3 +265,4 @@ pre { background: var(--s1); border: 1px solid var(--line); border-radius: var(-
 .snippet code { display: block; overflow-x: auto; white-space: nowrap; font-size: 12px; padding: 8px 10px; background: var(--s2); border-radius: 8px; }
 @media (max-width: 640px) { .snippet { grid-template-columns: minmax(0, 1fr) auto; } .snippet > span { grid-column: 1 / -1; } }
 .card .big { font-size: 30px; font-weight: 600; letter-spacing: -0.02em; color: var(--accent); }
+.steps > .card + .card { margin-top: 0; }

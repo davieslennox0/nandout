@@ -70,7 +70,7 @@ export function explainCircuit(c: Circuit, bits: number, prevState = 0): Explain
   }
   const reset = evalRule(c.reset, bits);
   const set = evalRule(c.set, bits);
-  if (reset) return { pass: false, kind: 'reset', why: met(c.reset, bits).map((text) => ({ text: `reset: ${text}` })) };
+  if (reset) return { pass: false, kind: 'reset', why: met(c.reset, bits).map((text) => ({ text })) };
   if (set) return { pass: true, kind: 'met', why: met(c.set, bits).map((text) => ({ text })) };
   if (prevState === 1) return { pass: true, kind: 'held', why: [{ text: 'holding: set earlier, nothing has reset it since' }] };
   return { pass: false, kind: 'unmet', why: unmet(c.set, bits) };
