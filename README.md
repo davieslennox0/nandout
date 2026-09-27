@@ -26,6 +26,13 @@ Free to check, pay to create.
 
 Research on TapeOut, Ignix and X Layer: [`docs/RECON.md`](docs/RECON.md).
 
+## Runs on X Layer, served from X Layer
+
+Nandout runs on X Layer and is served from X Layer: a static mirror of this project lives on-chain in TapeOut DeWEB at
+**https://1-2-230.tapekit.org** (on-chain name `1.2.230.tape`: circuit #1 of Nandout processor 230). The page's 8,605 bytes
+are stored in X Layer's SiteRegistry and checked against their SHA-256 in the visitor's browser before display; no server
+holds them. The live, dynamic app stays at [nandout.xyz](https://nandout.xyz). Details: [`docs/DEWEB-RECON.md`](docs/DEWEB-RECON.md).
+
 ## Deployed on X Layer mainnet (chainId 196)
 
 All four Latch contracts are verified on OKLink. Deployed 2026-09-23 at block 71,426,236 from
