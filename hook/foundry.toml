@@ -1,0 +1,20 @@
+[profile.default]
+src = "src"
+out = "out"
+libs = ["lib"]
+allow_paths = ["../contracts"]
+solc = "0.8.26"
+evm_version = "cancun"
+optimizer = true
+optimizer_runs = 1000000
+via_ir = true
+fs_permissions = [{ access = "read", path = "./test/fixtures" }, { access = "read-write", path = "./bench" }]
+remappings = [
+  "v4-core/=lib/v4-core/",
+  "forge-std/=lib/v4-core/lib/forge-std/src/",
+  "solmate/=lib/v4-core/lib/solmate/",
+  "latch/=../contracts/src/",
+]
+
+[rpc_endpoints]
+xlayer = "${XLAYER_RPC_URL}"

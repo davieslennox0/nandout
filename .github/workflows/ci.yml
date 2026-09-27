@@ -54,6 +54,23 @@ jobs:
           XLAYER_RPC_URL: https://rpc.xlayer.tech
         run: forge test --mc ForkTest -vv
 
+  hook:
+    name: hook (forge, X Layer fork)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: hook
+    steps:
+      - uses: actions/checkout@v4
+      - uses: foundry-rs/foundry-toolchain@v1
+      - name: Install v4-core (pinned)
+        run: forge install Uniswap/v4-core@cd98eff28324bfac652e63a239a60632a761790b --no-git
+      - run: forge build --sizes
+      - name: Tests (fork tests run against a local fork of X Layer mainnet; nothing is broadcast)
+        env:
+          XLAYER_RPC_URL: https://rpc.xlayer.tech
+        run: forge test -vv
+
   web:
     name: web (build)
     runs-on: ubuntu-latest
