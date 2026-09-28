@@ -32,6 +32,12 @@ export const ONCHAIN_MASK = ONCHAIN_BITS.reduce((m, b) => m | (1 << BITS[b]), 0)
 
 export const RESERVED_MASK = 0xe000;
 
+/**
+ * Bit schema: input name -> input index (0..15). Latch uses BITS; other consumers of the same processor and evaluator
+ * (e.g. the fee hook in hook/) pass their own. Unused indices must read as 0 in the consumer's fact word.
+ */
+export type Schema = Readonly<Record<string, number>>;
+
 export function isBitName(s: string): s is BitName {
   return Object.prototype.hasOwnProperty.call(BITS, s);
 }

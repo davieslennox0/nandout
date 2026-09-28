@@ -1,5 +1,5 @@
 import { keccak256, toHex } from 'viem';
-import { N_IN, N_OUT, RESERVED_MASK } from './bits.ts';
+import { BITS, N_IN, N_OUT, RESERVED_MASK, type Schema } from './bits.ts';
 import { type Circuit, circuitToJson, evalCircuit, parseCircuit, toInfix } from './dsl.ts';
 import { lower } from './lower.ts';
 import { decode, encode, estimateEvalGas, gateCount, type Netlist, nState, step } from './netlist.ts';
@@ -33,13 +33,13 @@ export class VerificationError extends Error {}
  * circuits every (previous state, input) pair. Reserved bits are included in the sweep so a netlist can
  * never depend on them. Re-decodes the bytes first, so what is verified is exactly what gets taped out.
  */
-export function verify(c: Circuit, bytes: Uint8Array): void {
+export function verify(c: Circuit, bytes: Uint8Array, schema: Schema = BITS): void {
   const nl = decode(bytes, N_IN, N_OUT);
   const states = c.kind === 'latch' ? [0, 1] : [0];
   if (nState(nl) !== states.length - 1) throw new VerificationError(`expected ${states.length - 1} latches, got ${nState(nl)}`);
   for (const s of states) {
     for (let x = 0; x < 1 << N_IN; x++) {
-      const want = evalCircuit(c, s, x);
+      const want = evalCircuit(c, s, x, schema);
       const got = step(nl, s, x);
       if ((got.outputs & 1) !== (want.pass ? 1 : 0) || got.state !== want.state) {
         throw new VerificationError(
@@ -51,11 +51,12 @@ export function verify(c: Circuit, bytes: Uint8Array): void {
   }
 }
 
-export function compile(name: string, dsl: unknown): Compiled {
-  const c = parseCircuit(dsl);
-  const nl: Netlist = lower(c);
+/** Compile + exhaustive verification. `schema` defaults to the Latch bits; other consumers pass their own. */
+export function compile(name: string, dsl: unknown, schema: Schema = BITS): Compiled {
+  const c = parseCircuit(dsl, schema);
+  const nl: Netlist = lower(c, schema);
   const bytes = encode(nl);
-  verify(c, bytes);
+  verify(c, bytes, schema);
   const hex = toHex(bytes);
   const latchCount = nState(nl);
   return {

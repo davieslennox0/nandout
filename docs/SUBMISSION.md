@@ -1,13 +1,26 @@
-# Nandout — Genesis Transistor Hackathon submission
+# Nandout: Genesis Transistor Hackathon submission
 
-**Nothing moves on Ignix until the logic says so.** Taped-out TapeOut circuits that gate Ignix launches and lock creator
-allocations on X Layer.
+**A programmable on-chain decision layer on X Layer.** Rules are taped-out TapeOut circuits: immutable NAND netlists
+evaluated by an ownerless evaluator. Consumers pack facts into bits and act on the circuit's verdict. One processor, one
+compiler, one evaluator posture, three consumers:
+
+- **Gate** (live): every Ignix launch is scored by filter circuits; vaults and agents call `LatchGate.check` / `checkMany`.
+- **NexusHook** (fork-proven, not deployed): a Uniswap v4 hook whose LP fee tier comes from two taped-out circuits.
+  - The full output is precomputed at registration, so each swap pays +9.8% gas instead of +53% for live evaluation.
+  - It survives a malicious TapeOut upgrade (tested).
+  - Details: [`HOOK.md`](HOOK.md).
+- **Lock** (deployed, narrow): creator allocations are released only when an unlock circuit passes. Two limits:
+  - Ignix tokens cannot be locked before they graduate: every transfer reverts with `CurveOnly()`.
+  - 93% of creator wallets held zero of their own token in our 2026-09-27 snapshot, so few creators have anything to lock.
+
+**General result:** precomputing a circuit's complete output, on-chain from the frozen netlist, makes immutable circuit
+logic viable on hot paths where per-call evaluation is not.
 
 | | |
 |---|---|
 | Processor (TapeOut, X Layer) | `0x8A60B4A4BCf4066F5E5F9A406fE09c5e4f52a58E`: "Nandout", processor number 230, created through TapeOut's factory |
 | Transistor supply / cap / price | 500,000 / 500,000 (supply is the cap) / 0.001 OKB per transistor, fixed at deploy (see `docs/ECONOMICS.md`) |
-| Circuits taped out | 6 starter circuits on processor 230 (BASIC_SAFETY, REVENUE_AGENTS, STRICT, UNLOCK_T1, UNLOCK_T2, STICKY_SAFETY) |
+| Circuits taped out | 6 starter circuits on processor 230 (BASIC_SAFETY, REVENUE_AGENTS, STRICT, UNLOCK_T1, UNLOCK_T2, STICKY_SAFETY). NexusHook's VOL_GUARD / DEPTH_GUARD are taped out on the same processor in fork tests only. |
 | Deploy wallet | `0x934d315C0a9C0866D393B722C1805F2B6b20b816` |
 | Live app | https://nandout.xyz |
 | On-chain site (DeWEB) | https://1-2-230.tapekit.org (`1.2.230.tape`) |
@@ -39,10 +52,17 @@ other projects can build on without reverse-engineering it.
 
 ## Ecosystem findings (with receipts)
 
-- **Ignix `/v1/launches` is capped at the newest 5,000 launches and ignores `page`, `limit`, `offset`, `cursor` and `skip`**
-  (page 2 returns the same 5,000 as page 1). Any integrator reading only the index silently loses older launches. Nandout
-  found this in its own attestor (45 launches had dropped out), fixed it with a durable launch registry refreshed via
-  `/v1/launches/{token}`, and reported it to Ignix.
+- **Ignix's unscoped `/v1/launches` index returns only the newest 5,000 launches.** Unscoped `page` / `limit` / `offset`
+  parameters are ignored, so an integrator reading only that list silently loses older launches. Creator-scoped queries
+  (`?creator=…&page=…`) do paginate, and `/v1/launches/{token}` and `/v1/launches/search` work.
+  - Nandout's attestor had lost 45 launches this way. It now keeps a durable launch registry refreshed via
+    `/v1/launches/{token}`.
+  - We did not file a bug report: the API can already reach older launches, so this is an integration note, not a bug.
+- **Pre-graduation Ignix tokens are non-transferable.** Every `transfer` / `transferFrom` reverts with `CurveOnly()`
+  (selector `0x9dabc49b`), even 1 token to a plain wallet, until the token graduates to a pool. Found when the first real
+  lock attempt reverted in simulation; nandout.xyz/lock now checks this before offering an approve.
+- **Uniswap v4 on X Layer is canonical v4-core.** PoolManager `0x360E…FB32` is byte-identical to Ethereum's
+  `0x0000…8A90` except its 20-byte self-address immutable (checked in CI).
 - **TapeKit issue #6 is a false negative.** It reports "no SiteRegistry / DomainBinding code on X Layer" because it checked
   the BSC addresses. On X Layer they live at SiteRegistry `0xd6efb7adcc9c83dc4924ad56f6a8e4e969b9adb6` and DomainBinding
   `0x68809fd2fb343aa57d0aeb7f33defe477c9666f9` (in TapeKit's own kernel config, verified 2026-09-19). Nandout used them to

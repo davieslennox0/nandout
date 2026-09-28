@@ -1,4 +1,9 @@
-# NexusHook — Phase 0 recon
+# NexusHook: Phase 0 recon
+
+> **Superseded in part by Phase 1** ([`HOOK.md`](HOOK.md)): live per-swap evaluation was rejected in favour of a
+> table precomputed at registration, MILESTONE was deferred, the Phase 0 `FeeEvaluator`/`BenchHook` benchmark code was
+> replaced by the real `FeeCircuitHook` (which reuses Nandout's deployed LatchEvaluator), and the gas numbers below were
+> re-measured on the real hook. This file is kept as the feasibility record.
 
 Date: 2026-09-27. X Layer mainnet (chain 196). **No mainnet transactions were sent.** All measurements come from a
 local anvil fork of X Layer mainnet (fork block 71,781,136) using the real PoolManager bytecode, and a throwaway key

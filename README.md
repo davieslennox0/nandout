@@ -1,30 +1,48 @@
 # Nandout
 
-> Nothing moves on Ignix until the logic says so. · [nandout.xyz](https://nandout.xyz)
+> A programmable on-chain decision layer on X Layer. · [nandout.xyz](https://nandout.xyz)
 
-**Naming:** *Nandout* is the product. *Latch* is the mechanism: a launch stays latched (untrusted) until a circuit
-unlatches it. So the contracts keep the `Latch*` names (`LatchGate`, `LatchLock`, `LatchFeed`), and that's how they're
-verified on OKLink. A fourth contract, `LatchEvaluator`, is the sealed evaluator that `LatchGate` and `LatchLock` share.
+Nandout turns rules into **taped-out TapeOut circuits**: NAND netlists, immutable once registered. Consumers measure
+the world in Solidity, pack the facts into bits, and act on the circuit's verdict. Everything below shares one stack:
 
-Nandout is built on TapeOut logic circuits on X Layer (chainId 196):
+- **one processor:** "Nandout", TapeOut processor 230 at `0x8A60…a58E`;
+- **one compiler:** `compiler/`, rule DSL → NAND netlist, verified exhaustively over every input;
+- **one evaluator posture:** `LatchEvaluator`, ownerless, stateless, no proxy, evaluating frozen netlist snapshots. It
+  never calls TapeOut's upgradeable contracts on the paths that move money.
 
-- **Gate** (`LatchGate`): every Ignix launch is *latched* (untrusted) until it passes a taped-out filter circuit.
-  Vaults, agents and traders call `LatchGate.check` / `checkMany` before deploying capital. Free, view-only.
-- **Lock** (`LatchLock`): creator allocations are held and released tranche by tranche, only when an unlock circuit
-  passes. Locking enough supply sets the `LATCH_LOCKED` input bit, so locked launches pass more filters.
+| Consumer | What the circuit decides | State |
+|---|---|---|
+| **Gate** (`LatchGate`) | Whether an Ignix launch is *unlatched* (passes a filter). Vaults, agents and traders call `check` / `checkMany`: free, view-only. | **Live on mainnet.** The attestor scores every Ignix launch (5,144 registered on 2026-09-28) every 10 minutes. |
+| **NexusHook** (`hook/`, `FeeCircuitHook`) | The LP fee tier of a Uniswap v4 pool, from 5 facts about volatility and depth. The circuit's full output is precomputed at registration and looked up per swap (+9.8% gas). | **Fork-proven, not deployed.** Tested against the real X Layer PoolManager, processor and evaluator. [`docs/HOOK.md`](docs/HOOK.md) |
+| **Lock** (`LatchLock`) | When a creator's locked tranche may be released. Keeping ≥ 5% of supply locked sets the `LATCH_LOCKED` bit that Gate filters read. | **Deployed, narrow in practice** (below). |
 
-Free to check, pay to create.
+**Lock is narrow, for measured reasons:**
+- **Pre-graduation tokens can't be locked.** Ignix tokens still on their bonding curve revert every transfer with
+  `CurveOnly()`, so they cannot be moved into LatchLock at all. That's most launches.
+- **Most creators have nothing to lock.** In our 2026-09-27 snapshot, 4,699 of 5,067 creator wallets (93%) held zero of
+  their own token, and only 10 held the ≥ 5% needed for `LATCH_LOCKED`.
+
+The share page, badge and filters work for every token; locking itself is a post-graduation feature for the few
+creators who hold supply.
+
+**General result:** any hot path can precompute a TapeOut circuit's complete output once, on-chain from the frozen
+netlist, and look it up. That makes immutable circuit logic viable where per-call evaluation is not; see
+[`docs/HOOK.md`](docs/HOOK.md#general-result-precompute-the-circuit-look-it-up).
+
+**Naming:** *Nandout* is the product; *Latch* is the mechanism (a launch stays latched until a circuit unlatches it). The
+contracts keep their `Latch*` names, which is how they're verified on OKLink.
 
 ## Status
 
 | Package | State |
 |---|---|
-| `compiler/` | Rule DSL → NAND/LATCH netlist in TapeOut's format, exhaustively verified over all 2^16 inputs (×2 states for latches). |
-| `contracts/` | `LatchFeed`, `LatchGate`, `LatchLock` + Foundry tests against a TapeOut mock that runs TapeOut's own NetlistVM. **Not deployed.** |
-| `attestor/` | Ignix index + X Layer Transfer logs → attested bits → LatchFeed. First full cycle run against a local fork ([`docs/data/bit-distribution.md`](docs/data/bit-distribution.md)). |
-| `web/`, `agent/` | Not started. |
+| `compiler/` | Rule DSL → NAND/LATCH netlist in TapeOut's format, exhaustively verified over all 2^16 inputs (×2 states for latches). The bit schema is a parameter: Latch bits by default, the hook's fee facts for `hook/`. |
+| `contracts/` | `LatchFeed`, `LatchGate`, `LatchLock`, `LatchEvaluator`: **deployed and verified on X Layer mainnet** (addresses below). Foundry tests, plus a fork test against the real TapeOut contracts. |
+| `attestor/` | Ignix index + registry + X Layer Transfer logs → attested bits → LatchFeed, on a 10-minute cron. |
+| `web/` | nandout.xyz: launches, filters, per-token lock pages, badges, /lock, /creators. Built by GitHub Actions, served from our server. |
+| `hook/` | NexusHook `FeeCircuitHook` + fork tests + gas report. Not deployed. |
 
-Research on TapeOut, Ignix and X Layer: [`docs/RECON.md`](docs/RECON.md).
+Research: [`docs/RECON.md`](docs/RECON.md) (TapeOut, Ignix, X Layer), [`docs/HOOK-RECON.md`](docs/HOOK-RECON.md) (Uniswap v4 on X Layer).
 
 ## Runs on X Layer, served from X Layer
 
@@ -89,7 +107,7 @@ both results and exposes any divergence.
 it does not prove that every token was re-evaluated. `getBits` does return a per-token `updatedAt`, but it only moves when a
 token's bits change, and the deployed LatchGate/LatchLock (immutable) check only the global flag. So a token the attestor
 stopped evaluating would keep old bits while the feed reads fresh. This became real when Ignix's `/v1/launches` started
-returning only the newest 5,000 launches (page/limit ignored): older launches silently dropped out of the attestor's view.
+returning only the newest 5,000 launches (unscoped page/limit are ignored; creator-scoped queries and `/v1/launches/{token}` do reach older ones): older launches silently dropped out of the attestor's view.
 Mitigation, not a contract fix: the attestor keeps a durable registry of every launch it has ever seen, recomputes the
 on-chain bits (holders, top-10, dev outflows, LP) of all of them every cycle, refreshes out-of-index launches' Ignix
 fields via `/v1/launches/{token}` (tokens backing a lock every cycle, the rest round-robin), and publishes per-token

@@ -3,3 +3,5 @@ out/
 cache/
 broadcast/
 /bench/
+.env
+.env.*

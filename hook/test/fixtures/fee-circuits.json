@@ -1,0 +1,65 @@
+{
+  "schema": {
+    "VOL_HIGH": 0,
+    "VOL_ELEVATED": 1,
+    "DEPTH_THIN": 2,
+    "DEPTH_CRITICAL": 3,
+    "DEPTH_DRAIN": 4
+  },
+  "nFacts": 5,
+  "circuits": [
+    {
+      "name": "VOL_GUARD",
+      "infix": "VOL_HIGH OR (VOL_ELEVATED AND (DEPTH_THIN OR DEPTH_DRAIN))",
+      "netlist": "0x000000040000040000000600000600000012000013000000030000140000000200000200000015000016",
+      "netlistHash": "0x55d236d5283df931254f7b28cec2ed3780cba908b968b72bd1e3d847de204e99",
+      "nandCount": 6,
+      "latchCount": 0,
+      "gateCount": 6
+    },
+    {
+      "name": "DEPTH_GUARD",
+      "infix": "DEPTH_THIN OR DEPTH_CRITICAL OR DEPTH_DRAIN",
+      "netlist": "0x000000040000040000000500000500000012000013000000140000140000000600000600000015000016",
+      "netlistHash": "0xc5b14f95a1121e0302d34567f72b8682c4d57eeb1682e4c1e23e408ff9478b24",
+      "nandCount": 6,
+      "latchCount": 0,
+      "gateCount": 6
+    }
+  ],
+  "tiers": [
+    0,
+    2,
+    0,
+    2,
+    1,
+    3,
+    3,
+    3,
+    1,
+    3,
+    1,
+    3,
+    1,
+    3,
+    3,
+    3,
+    1,
+    3,
+    3,
+    3,
+    1,
+    3,
+    3,
+    3,
+    1,
+    3,
+    3,
+    3,
+    1,
+    3,
+    3,
+    3
+  ],
+  "table": "0xfdfdfdfdfdddfd88"
+}

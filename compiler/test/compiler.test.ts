@@ -70,3 +70,12 @@ test('random rules verify', () => {
   };
   for (let i = 0; i < 25; i++) compile(`R${i}`, gen(4));
 });
+
+test('custom bit schema: compiles and verifies with its own names, rejects Latch names and out-of-range indices', () => {
+  const FEE = { VOL_HIGH: 0, VOL_ELEVATED: 1, DEPTH_THIN: 2 } as const;
+  const c = compile('G', { any: ['VOL_HIGH', { all: ['VOL_ELEVATED', 'DEPTH_THIN'] }] }, FEE);
+  const nl = decode(Buffer.from(c.netlist.slice(2), 'hex'), N_IN, N_OUT);
+  for (let x = 0; x < 8; x++) assert.equal(step(nl, 0, x).outputs & 1, (x & 1) || ((x & 2) && (x & 4)) ? 1 : 0, `x=${x}`);
+  assert.throws(() => compile('BAD', 'LP_LOCKED', FEE), DslError);
+  assert.throws(() => compile('BAD', 'X', { X: 16 }), DslError);
+});

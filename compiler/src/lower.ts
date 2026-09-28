@@ -1,4 +1,4 @@
-import { BITS, N_IN, N_OUT } from './bits.ts';
+import { BITS, N_IN, N_OUT, type Schema } from './bits.ts';
 import type { Circuit, Rule } from './dsl.ts';
 import type { Element, Netlist } from './netlist.ts';
 
@@ -11,7 +11,7 @@ interface Lit { s: number; neg: boolean }
 class Builder {
   readonly elements: Element[] = [];
   private readonly cache = new Map<string, number>();
-  constructor(readonly nIn: number) {}
+  constructor(readonly nIn: number, private readonly schema: Schema) {}
 
   private push(e: Element): number {
     this.elements.push(e);
@@ -40,7 +40,7 @@ class Builder {
   negated(l: Lit): number { return l.neg ? l.s : this.not(l.s); }
 
   gen(r: Rule): Lit {
-    if (typeof r === 'string') return { s: 2 + BITS[r], neg: false };
+    if (typeof r === 'string') return { s: 2 + this.schema[r], neg: false };
     if ('not' in r) { const l = this.gen(r.not); return { s: l.s, neg: !l.neg }; }
     if ('all' in r) {
       // AND(x, y) = NOT NAND(x, y): keep the NAND and mark the result negated.
@@ -74,8 +74,8 @@ function removeDead(elements: Element[], nIn: number, out: number): { elements: 
   return { elements: kept, out: m(out) };
 }
 
-export function lower(c: Circuit): Netlist {
-  const b = new Builder(N_IN);
+export function lower(c: Circuit, schema: Schema = BITS): Netlist {
+  const b = new Builder(N_IN, schema);
   let out: number;
   if (c.kind === 'combinational') {
     out = b.pos(b.gen(c.rule));

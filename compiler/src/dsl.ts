@@ -1,4 +1,4 @@
-import { BITS, type BitName, isBitName } from './bits.ts';
+import { BITS, type BitName, N_IN, type Schema } from './bits.ts';
 
 /** Rule DSL: a bit name, or {all:[...]}, {any:[...]}, {not: rule}. */
 export type Rule = BitName | { all: Rule[] } | { any: Rule[] } | { not: Rule };
@@ -13,7 +13,10 @@ export type Circuit =
 
 export class DslError extends Error {}
 
-export function parseCircuit(input: unknown): Circuit {
+/** Leaf names are typed as BitName for Latch; with a custom schema they are that schema's names (validated at parse). */
+const index = (name: string, schema: Schema): number => schema[name];
+
+export function parseCircuit(input: unknown, schema: Schema = BITS): Circuit {
   if (input !== null && typeof input === 'object' && !Array.isArray(input) && 'latch' in input) {
     if (Object.keys(input).length !== 1) throw new DslError('$: "latch" must be the only key');
     const l = (input as { latch: unknown }).latch;
@@ -21,15 +24,15 @@ export function parseCircuit(input: unknown): Circuit {
     const keys = Object.keys(l).sort().join(',');
     if (keys !== 'reset,set') throw new DslError('$.latch: expected exactly {set, reset}');
     const { set, reset } = l as { set: unknown; reset: unknown };
-    return { kind: 'latch', set: parseRule(set, '$.latch.set'), reset: parseRule(reset, '$.latch.reset') };
+    return { kind: 'latch', set: parseRule(set, '$.latch.set', schema), reset: parseRule(reset, '$.latch.reset', schema) };
   }
-  return { kind: 'combinational', rule: parseRule(input) };
+  return { kind: 'combinational', rule: parseRule(input, '$', schema) };
 }
 
 /** Reference semantics for one step of a circuit (state is 0/1; unused for combinational). */
-export function evalCircuit(c: Circuit, state: number, inputs: number): { state: number; pass: boolean } {
-  if (c.kind === 'combinational') return { state: 0, pass: evalRule(c.rule, inputs) };
-  const next = !evalRule(c.reset, inputs) && (evalRule(c.set, inputs) || state === 1);
+export function evalCircuit(c: Circuit, state: number, inputs: number, schema: Schema = BITS): { state: number; pass: boolean } {
+  if (c.kind === 'combinational') return { state: 0, pass: evalRule(c.rule, inputs, schema) };
+  const next = !evalRule(c.reset, inputs, schema) && (evalRule(c.set, inputs, schema) || state === 1);
   return { state: next ? 1 : 0, pass: next };
 }
 
@@ -38,10 +41,12 @@ export function circuitToJson(c: Circuit): unknown {
 }
 
 /** Validates untrusted JSON and returns a typed Rule. Throws DslError with a path on failure. */
-export function parseRule(input: unknown, path = '$'): Rule {
+export function parseRule(input: unknown, path = '$', schema: Schema = BITS): Rule {
   if (typeof input === 'string') {
-    if (!isBitName(input)) throw new DslError(`${path}: unknown bit "${input}"`);
-    return input;
+    const i = Object.prototype.hasOwnProperty.call(schema, input) ? schema[input] : undefined;
+    if (i === undefined) throw new DslError(`${path}: unknown bit "${input}"`);
+    if (!Number.isInteger(i) || i < 0 || i >= N_IN) throw new DslError(`${path}: bit "${input}" maps to index ${i}, outside 0..${N_IN - 1}`);
+    return input as BitName;
   }
   if (input === null || typeof input !== 'object' || Array.isArray(input)) {
     throw new DslError(`${path}: expected a bit name or an object with all/any/not`);
@@ -53,17 +58,17 @@ export function parseRule(input: unknown, path = '$'): Rule {
   if (k === 'not') return { not: parseRule(v, `${path}.not`) };
   if (k === 'all' || k === 'any') {
     if (!Array.isArray(v) || v.length === 0) throw new DslError(`${path}.${k}: expected a non-empty array`);
-    const items = v.map((x, i) => parseRule(x, `${path}.${k}[${i}]`));
+    const items = v.map((x, i) => parseRule(x, `${path}.${k}[${i}]`, schema));
     return k === 'all' ? { all: items } : { any: items };
   }
   throw new DslError(`${path}: unknown operator "${k}"`);
 }
 
-export function evalRule(rule: Rule, inputs: number): boolean {
-  if (typeof rule === 'string') return ((inputs >> BITS[rule]) & 1) === 1;
-  if ('not' in rule) return !evalRule(rule.not, inputs);
-  if ('all' in rule) return rule.all.every((r) => evalRule(r, inputs));
-  return rule.any.some((r) => evalRule(r, inputs));
+export function evalRule(rule: Rule, inputs: number, schema: Schema = BITS): boolean {
+  if (typeof rule === 'string') return ((inputs >> index(rule, schema)) & 1) === 1;
+  if ('not' in rule) return !evalRule(rule.not, inputs, schema);
+  if ('all' in rule) return rule.all.every((r) => evalRule(r, inputs, schema));
+  return rule.any.some((r) => evalRule(r, inputs, schema));
 }
 
 /** Canonical JSON (stable key order is trivial here: single-key objects, arrays keep order). */
