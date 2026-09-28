@@ -1,0 +1,438 @@
+{
+ "generatedFrom": "attestor registry + transfer index",
+ "count": 48,
+ "tokens": [
+  {
+   "token": "0x120d58b804f86dc6cbd8f1a56278582b40dceeee",
+   "symbol": "RAT",
+   "venue": "v2",
+   "pair": "0x8630eea590138ab7b482d90c8dcca01690c2e298",
+   "lpTokenId": null,
+   "holder": "0x0b6f84607e813364998ad27c03879becec16a787",
+   "holderBal": "18570626080742809425646294"
+  },
+  {
+   "token": "0x02740d4e1f26b912ed5a2aff9f6c8a29f04beeee",
+   "symbol": "MONKEY",
+   "venue": "v2",
+   "pair": "0xca7cdfd2524421fc3d642fd0bd5defd3e005ff7c",
+   "lpTokenId": null,
+   "holder": "0x702e02e9daf2ebfcf35142b396473fb41642d1b8",
+   "holderBal": "22501786581962743471419641"
+  },
+  {
+   "token": "0xa5cdafb671c1950d2414e490dee79e24c0c0eeee",
+   "symbol": "米兔",
+   "venue": "v2",
+   "pair": "0xf6758cdda33184b329eaf26422adbc88c0102649",
+   "lpTokenId": null,
+   "holder": "0x866422c544e81233e5135e57d9754bc04f092a13",
+   "holderBal": "12223439134860663826096445"
+  },
+  {
+   "token": "0xb3fc66a32085884666bf69b92355ca0aeee6eeee",
+   "symbol": "IG",
+   "venue": "v2",
+   "pair": "0xaf49d4c9c157be4082559559e0d2c0768579710d",
+   "lpTokenId": null,
+   "holder": "0x8edf20eeb8e83853bce20ffedb2325fae3a6ab1f",
+   "holderBal": "14493260237698154464756592"
+  },
+  {
+   "token": "0x5cba9858ad272b71ae0bd521b70fe7288cfbeeee",
+   "symbol": "X拉布布",
+   "venue": "v2",
+   "pair": "0x0f6fb1e869d3e0a2d44b03f6adc5eaf15d75cd4e",
+   "lpTokenId": null,
+   "holder": "0x8ea1d661671ae848fce0670639902c5baccbf08c",
+   "holderBal": "28078716298407125298131203"
+  },
+  {
+   "token": "0xb87d91cf9b2cd392b5becc20a3e4a629eeb3eeee",
+   "symbol": "IGB",
+   "venue": "v2",
+   "pair": "0x1e1de73705cd84bb09c2115c9452ac6cf3ce771a",
+   "lpTokenId": null,
+   "holder": "0x28816c4c4792467390c90e5b426f198570e29307",
+   "holderBal": "58888888000000000000000000"
+  },
+  {
+   "token": "0x3f8a7eaeeea0a1bbea4310d1c601999fa147eeee",
+   "symbol": "OMB",
+   "venue": "v2",
+   "pair": "0x04b12f6acf912e65e9702763c91bfcdd95e20ab4",
+   "lpTokenId": null,
+   "holder": "0x68fdca5b0b85347488570342512c12d13833cd31",
+   "holderBal": "35893640991620123925133176"
+  },
+  {
+   "token": "0x6129463b277315de7080bad6993ef842578beeee",
+   "symbol": "MARSCAT",
+   "venue": "v2",
+   "pair": "0x1d043b666cfd52786698f85820e3b12910928ca5",
+   "lpTokenId": null,
+   "holder": "0x12621f19a6eff6b3bab290fa47993b9120ea1844",
+   "holderBal": "3810421925282601170690414"
+  },
+  {
+   "token": "0xa3c9287861bf30c0b90691de51c5bfecb90ceeee",
+   "symbol": "宝拉",
+   "venue": "v2",
+   "pair": "0x3f75269728db1ec8f9b210d9184771503e773e7b",
+   "lpTokenId": null,
+   "holder": "0x3779b90f1a7f87d7982b055bf4ac9fd2c41bc488",
+   "holderBal": "32873856001271015851272229"
+  },
+  {
+   "token": "0xda9869b54704bd6b2aad0d2a6b41d40adb9ceeee",
+   "symbol": "HOTCAT",
+   "venue": "v2",
+   "pair": "0x1a8d6a16caa3c21a62764143dc469ac9c71ff2b8",
+   "lpTokenId": null,
+   "holder": "0x9f44609f8aa9bfbcdbcbff1a1bffc5de9fc3954c",
+   "holderBal": "4490683051924757602565459"
+  },
+  {
+   "token": "0x16aa672dda63f5acd0de098c04c4a3e957d1eeee",
+   "symbol": "TAPEOUTX",
+   "venue": "v2",
+   "pair": "0x058e73b7c04ea5ec560400dd7b8370768b49366d",
+   "lpTokenId": null,
+   "holder": "0xff6cc8e276da34c952dc96d8d08824c77d37b0c5",
+   "holderBal": "17579384866561116926685443"
+  },
+  {
+   "token": "0x21d6359cab338ea54705e7d04efbaadd9020eeee",
+   "symbol": "TAPEOUTX",
+   "venue": "v2",
+   "pair": "0x02f335a407688cad2d22fe16878474dae04b920c",
+   "lpTokenId": null,
+   "holder": "0x928ac962832b98549c522f40f33f057b0f6cc430",
+   "holderBal": "12229283925240024585629484"
+  },
+  {
+   "token": "0x4d1019fbae8dcbeb73e22c21512e26b87cdaeeee",
+   "symbol": "TapeOut",
+   "venue": "v2",
+   "pair": "0xd8564de7dd3ebf7ffe27fd380ed738fb0de6e762",
+   "lpTokenId": null,
+   "holder": "0xedcbcc3173a69c86b5c67f75b5656cd70b65399c",
+   "holderBal": "35757445913580991210865417"
+  },
+  {
+   "token": "0x789cbcf6992fca13abeeeb55d7a3466dbaf6eeee",
+   "symbol": "IMOO",
+   "venue": "v2",
+   "pair": "0xc24a91f205f68d4fbf001298c9549bb482d3041f",
+   "lpTokenId": null,
+   "holder": "0x0d5d4baf38d116a23e212bb857dc29d7b4267f94",
+   "holderBal": "24549268495111195087193019"
+  },
+  {
+   "token": "0x32cefdc856adf33362f31a7a8fe61c8aefc7eeee",
+   "symbol": "OKCOIN",
+   "venue": "v2",
+   "pair": "0x6987e2d01ebaeaf0defed75148a18aa734ed3482",
+   "lpTokenId": null,
+   "holder": "0x01ca08232275a40a16e4137221313615f6d5eca4",
+   "holderBal": "30037498257683848580522620"
+  },
+  {
+   "token": "0xa63e42d09bfca311e8091269ac45fdeba9b0eeee",
+   "symbol": "XBOT",
+   "venue": "v2",
+   "pair": "0x73edf8bde90ec637835630cb4027c56e4b068199",
+   "lpTokenId": null,
+   "holder": "0x8c321a2af0ec0c5370ce0bc01a1e28ea0198c4f8",
+   "holderBal": "15697770165433040384763352"
+  },
+  {
+   "token": "0x0933f674bcfec78bd0f4720faf370fd9709feeee",
+   "symbol": "LING",
+   "venue": "v2",
+   "pair": "0xd31e00ea65a1f5d19ff1c60a9f33d2a893f838c4",
+   "lpTokenId": null,
+   "holder": "0x19f8aa2ecd59eff42017aeaed8ac98ad4102eafd",
+   "holderBal": "3391599193510519225080196"
+  },
+  {
+   "token": "0x64f495a29ea8af9161f57550df4df9dc289feeee",
+   "symbol": "HASH",
+   "venue": "v2",
+   "pair": "0xee1a0ac294bc4e60f77c6de29f4fea5f59a93799",
+   "lpTokenId": null,
+   "holder": "0x9147c109f903eea66dd0b512531ae9ce0377e76a",
+   "holderBal": "840141577734610672002014"
+  },
+  {
+   "token": "0xfcf9a6de16db771ceac989c9c1528b48a500eeee",
+   "symbol": "HASH",
+   "venue": "v2",
+   "pair": "0x84341f3281d188f00ebc084166fca6053a77d3bf",
+   "lpTokenId": null,
+   "holder": "0x3b58506f694db05d221952e27de1c52f81ab0851",
+   "holderBal": "113116322100723518448208"
+  },
+  {
+   "token": "0x2f7fd7a078e59c676a8099c4c4775a3b0549bbbb",
+   "symbol": "OKCOIN",
+   "venue": "v4",
+   "pair": null,
+   "lpTokenId": "11221",
+   "holder": "0x8b05e7c2e1b20655f526c9ae9e329f04daac3627",
+   "holderBal": "15061553977214732501177959"
+  },
+  {
+   "token": "0xf29749c1ebc20f860cc9159d0a6ca26df97deeee",
+   "symbol": "IFROG",
+   "venue": "v2",
+   "pair": "0x556d4b7db3c4466d94eb5398d2462fa610ade113",
+   "lpTokenId": null,
+   "holder": "0x5a30e1a81cedea0fe80dd47b4fbf1ffb5ef0ce13",
+   "holderBal": "18141741877963158998187217"
+  },
+  {
+   "token": "0x3a75e725dce841adfaeda829ca8700c14d91eeee",
+   "symbol": "BLOCKBABY",
+   "venue": "v2",
+   "pair": "0xaf4c883eca3192ba3fc9eb085c75d0b31478bfed",
+   "lpTokenId": null,
+   "holder": "0x1f656eda1b42f26b602f3c23ead40f04b2589633",
+   "holderBal": "35174449473457871507690048"
+  },
+  {
+   "token": "0xb7c5294db2c6af012138fe7a045b62a1c0faeeee",
+   "symbol": "I",
+   "venue": "v2",
+   "pair": "0x51bba4ad77857871ba666916f21f12b5b4abb73a",
+   "lpTokenId": null,
+   "holder": "0x5af9c8418d308275b153b832ecf78ba0f94d7639",
+   "holderBal": "29779869028740534153686372"
+  },
+  {
+   "token": "0xcbb9bd17490b71843c16610b2f8e21a9c5d4eeee",
+   "symbol": "IKUN",
+   "venue": "v2",
+   "pair": "0xc1b316716c2cd4c2da0e7af34d6a8f6cff85f575",
+   "lpTokenId": null,
+   "holder": "0x3ca2130287a0a0ca41c7d32443585babf975eaf7",
+   "holderBal": "30688939510276305665955542"
+  },
+  {
+   "token": "0xcb98ad437e96c16000b124c30338dd59b367eeee",
+   "symbol": "MARS",
+   "venue": "v2",
+   "pair": "0x7aa128de2ce23f40d3dd2ab67e3fbcb6476444c4",
+   "lpTokenId": null,
+   "holder": "0x528a4759e3e65b14714b32c8dd68e2f16db19209",
+   "holderBal": "17350512918513396249543076"
+  },
+  {
+   "token": "0xa8198d9bca089f99a0eb016c0462f7278001eeee",
+   "symbol": "DUO",
+   "venue": "v2",
+   "pair": "0x724cb8793f22f2fb9e3e103cfce0a7d8b9de656d",
+   "lpTokenId": null,
+   "holder": "0x340e9776a9b9e9eadb54408a4cbdd9bb741e09de",
+   "holderBal": "6913602129611284510110509"
+  },
+  {
+   "token": "0x93473df78414d36d98962ef60ef2e4c94650eeee",
+   "symbol": "ICAT",
+   "venue": "v2",
+   "pair": "0x0ca1967711f5a8136cbffd9454fe9e307935d7fd",
+   "lpTokenId": null,
+   "holder": "0xc067f77595394d09f2a96e500f1db7b59315cbad",
+   "holderBal": "19713574124616249614917149"
+  },
+  {
+   "token": "0x783cadb32c3cf34ba3eed907b519f1b27ef9eeee",
+   "symbol": "VIVRA",
+   "venue": "v2",
+   "pair": "0x90795222b98c45ba02ec4e5183b446a559b92636",
+   "lpTokenId": null,
+   "holder": "0x114f8b1d8fade388be0154300d138f5c12425579",
+   "holderBal": "20248949937028773132322804"
+  },
+  {
+   "token": "0x2026a3fcb9f2d2317085ab59bd666b64dd81eeee",
+   "symbol": "STERLING",
+   "venue": "v2",
+   "pair": "0xd9ab80532c60a4aaf7cc5cee120f42988622bb8a",
+   "lpTokenId": null,
+   "holder": "0xd797c2d263d45c282b8711e1cdd24d29e4dddda1",
+   "holderBal": "7987520509891117289289614"
+  },
+  {
+   "token": "0xf41bb89a39830a88cdc963fb0e91e24ce74ceeee",
+   "symbol": "STERLING",
+   "venue": "v2",
+   "pair": "0x2f4becf8ea911c7752cb426d5bbfea61877b44c5",
+   "lpTokenId": null,
+   "holder": "0x65870eea19bae83f1dc9535821e0b311e85415ce",
+   "holderBal": "1090374602534610826191901"
+  },
+  {
+   "token": "0xe74ebb791b4c433dfe4305f0f4adf1df5f77eeee",
+   "symbol": "IPO",
+   "venue": "v2",
+   "pair": "0xb0952a59129c6b0d7aeac43561ff5f6d0c0883fb",
+   "lpTokenId": null,
+   "holder": "0x090d798be27d69d2b28b1aa8162b29d8cdb43b8f",
+   "holderBal": "11061401617059026306608928"
+  },
+  {
+   "token": "0x87359b7d78b03bd81b567bf425263b453c73eeee",
+   "symbol": "STARLINK",
+   "venue": "v2",
+   "pair": "0x75f29bb65eac55a675808f671572699caafdece0",
+   "lpTokenId": null,
+   "holder": "0x310e9f23acfbeb37663c4041bf8913326d018b43",
+   "holderBal": "14170726604055582247717216"
+  },
+  {
+   "token": "0xf3c02ec2d17c9bcad4b3ae38d6a2f4b5d4b5bbbb",
+   "symbol": "ICEBULL",
+   "venue": "v4",
+   "pair": null,
+   "lpTokenId": "11207",
+   "holder": "0xa7d4ffc4eca3c71af150ce302560a9d04a1d2b9f",
+   "holderBal": "28187308337482936686610017"
+  },
+  {
+   "token": "0x6a9559dbff4b46d7997cd7177127d817e76beeee",
+   "symbol": "OKXICE",
+   "venue": "v2",
+   "pair": "0x339d2855aed666ba790fe99600c4284e5f16069c",
+   "lpTokenId": null,
+   "holder": "0xc3849b7a52ebdd88e43e0b44b6e22d4bacd5ace4",
+   "holderBal": "23790973207033083643224173"
+  },
+  {
+   "token": "0x7cda817043f9c53490bcbdf06b05feaa8e8beeee",
+   "symbol": "PIKA",
+   "venue": "v2",
+   "pair": "0xa6acbcfa63d06ef7aa273edbea78e5ebf0e4ce87",
+   "lpTokenId": null,
+   "holder": "0xe3b25b40eb9f42e195cfb6ea941992a935f23e5b",
+   "holderBal": "19944397790327588217198777"
+  },
+  {
+   "token": "0x4b54acf3b4f5642be2a734f4dc3f71661ee9eeee",
+   "symbol": "RUOK",
+   "venue": "v2",
+   "pair": "0xa242603730ea1fdf951c20ff106831be47aef22a",
+   "lpTokenId": null,
+   "holder": "0x9f70f59e05fc4e00c10660c36d2df4962b47448e",
+   "holderBal": "21223621194588566110610767"
+  },
+  {
+   "token": "0x82ea4dda1185d8ecaa92ad13d9a205778f87eeee",
+   "symbol": "肥嘟嘟",
+   "venue": "v2",
+   "pair": "0xfb0221fe421f72c381d64df76c333d92c593b491",
+   "lpTokenId": null,
+   "holder": "0x36f987da605928f41b799231b22e53a0eda30f79",
+   "holderBal": "25849665788350093971270219"
+  },
+  {
+   "token": "0x6c54dd1187bf84b7ed9f786e9eb5d25f0d9beeee",
+   "symbol": "XCAT",
+   "venue": "v2",
+   "pair": "0xf161e4677929ba9a15399cbe3ddf92d1614e2819",
+   "lpTokenId": null,
+   "holder": "0x57981b99a3e9fb2f15f9b387e9f718a8d01abd26",
+   "holderBal": "23549856968926106085397810"
+  },
+  {
+   "token": "0x0f8a6683a166444254d304871af443cb84c6eeee",
+   "symbol": "BODHI",
+   "venue": "v2",
+   "pair": "0xe88f5dfc95dd1fc67a84828ed2658d93ef5e0e0b",
+   "lpTokenId": null,
+   "holder": "0x403797459d4cdf80f15c0155ff1716cc41981191",
+   "holderBal": "6290761340132597420023406"
+  },
+  {
+   "token": "0xbb9a906f1a8906d548c5d94b7079fa31bf09eeee",
+   "symbol": "XCAT",
+   "venue": "v2",
+   "pair": "0x042df24e921205a6a5aaa2ccbc73e18b04ad77ae",
+   "lpTokenId": null,
+   "holder": "0x9139acf7e1502055a9c81769c867eb6a6f9466df",
+   "holderBal": "24606018210488843869310444"
+  },
+  {
+   "token": "0xb77d57b65b67b45c89b9626eeeece90adc8ceeee",
+   "symbol": "XLORE",
+   "venue": "v2",
+   "pair": "0xfbdeb65526a02c32f8fcf76b7d57046dba426d6e",
+   "lpTokenId": null,
+   "holder": "0x56a65a5f0a0984974e89e455e042699e351958df",
+   "holderBal": "18109398833004834046903597"
+  },
+  {
+   "token": "0x381bcca21e3d2e069fb2ba44569c1054cc62eeee",
+   "symbol": "STARCOIN",
+   "venue": "v2",
+   "pair": "0xabfeac79b94955fd396da08f65aa5b20ffb601e7",
+   "lpTokenId": null,
+   "holder": "0xa70f52bdf839f9cba9c2d0d0fe06dfc48835f7c9",
+   "holderBal": "25980175167595364971025652"
+  },
+  {
+   "token": "0x7ceea33f02694892dfa066cdaa9494fa1fa7eeee",
+   "symbol": "牛回",
+   "venue": "v2",
+   "pair": "0xf48ae09fb652faec1f729ddc017885fa14c735a7",
+   "lpTokenId": null,
+   "holder": "0x059aa8bb492422cd4dcea8cdfaebfed66c9c375b",
+   "holderBal": "4771907740301572713815068"
+  },
+  {
+   "token": "0xf93de4ef61309ca8bcd0feab0c6f4dd9b2c4eeee",
+   "symbol": "万事OK",
+   "venue": "v2",
+   "pair": "0x98ff483b4f9157d9750f03e7a031559700011ca9",
+   "lpTokenId": null,
+   "holder": "0xa70f52bdf839f9cba9c2d0d0fe06dfc48835f7c9",
+   "holderBal": "28685592128809197563506740"
+  },
+  {
+   "token": "0x77584b2805a204f56c4b250a6c8d314c713abbbb",
+   "symbol": "JACKET",
+   "venue": "v4",
+   "pair": null,
+   "lpTokenId": "8541",
+   "holder": "0x33a4c488c364a895440935926d36d45f6594f504",
+   "holderBal": "26355622593683049677679966"
+  },
+  {
+   "token": "0x0c9535416fd3b772646c4575e0664fd65afeeeee",
+   "symbol": "IGNIX",
+   "venue": "v2",
+   "pair": "0xd67a15e729a03203b4e1ec0eaef7896e7d87a652",
+   "lpTokenId": null,
+   "holder": "0xff7b4cdec338ae7bec51514fc5427b3327131f5a",
+   "holderBal": "18674471365110089073059471"
+  },
+  {
+   "token": "0xb899567d73ed11b0234926735ac8eb8b6668eeee",
+   "symbol": "EEEEE",
+   "venue": "v2",
+   "pair": "0xafb526062ae527ea65eef2595413d24c1d74c903",
+   "lpTokenId": null,
+   "holder": "0x32d6990c0cfbe4456b6a130774c6d3ce5abf19f5",
+   "holderBal": "30627692177066333288091746"
+  },
+  {
+   "token": "0xe97e35cef8e0f7513e01e54fe17e857e1ae0bbbb",
+   "symbol": "EEEE",
+   "venue": "v4",
+   "pair": null,
+   "lpTokenId": "8200",
+   "holder": "0xeceb2fb4d8a93b0b19273b033abca7215062d31e",
+   "holderBal": "16974001114926130373833835"
+  }
+ ]
+}

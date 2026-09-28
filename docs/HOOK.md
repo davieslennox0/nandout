@@ -178,19 +178,34 @@ afterSwapReturnsDelta, so the address ends in `0x…00C4`).
 routes buys to a reserve and sells to holder payouts. Our contribution is making the routing policy an immutable,
 publicly readable circuit rather than an admin setting.
 
-## Why NexusHook cannot host Ignix tokens (checked 2026-09-28)
+## Ignix tokens and V4: the tax is set per launch (fork survey, 2026-09-28)
 
-We planned the first live pool on IGNIXFROG, a graduated Ignix launch paired with wQQQx. It is impossible, for a reason
-unrelated to the hook:
+Ignix launches can tax transfers into the V4 PoolManager, and V4 settles exact amounts, so a taxed token cannot sit in any
+V4 pool. The rate is **configured per launch**. We surveyed all 48 graduated Ignix launches other than IGNIXFROG on a
+fork.
+- **Method:** each token moves holder → fresh address A → (a fresh address B, and the PoolManager). Rates are measured
+  in basis points lost.
+- **Data:** [`data/ignix-v4-tax-survey.csv`](data/ignix-v4-tax-survey.csv).
 
-- **Ignix taxes the V4 PoolManager.** IGNIXFROG takes **3% on transfers to and from its v2 pair and to and from the V4
-  PoolManager** (`0x360E…FB32`). Transfers to ordinary addresses, and to LatchLock, are untaxed.
-- **V4 cannot absorb a tax.** It settles exact amounts, so a pool holding a token that loses 3% in transit can never
-  settle. A plain hookless pool fails with `CurrencyNotSettled()` on the first add-liquidity.
-- **Pinned in CI:** `hook/test/IgnixFrogPool.fork.t.sol` asserts both the tax figures and the failure.
+| Tax into the V4 PoolManager | Launches |
+|---|---|
+| **0%: poolable** | **13** |
+| ~1% | 20 |
+| ~2% | 7 |
+| ~3% | 5 (plus IGNIXFROG, surveyed earlier) |
+| ~10% | 1 |
+| Transfer reverts | 2 (V4-template JACKET and EEEE) |
 
-Ignix evidently treats the PoolManager as a taxed venue, which also stops anyone from routing around the creator's tax
-through a V4 pool. A NexusHook pool needs untaxed tokens, such as wQQQx, USDT0 or xETH.
+- **Ordinary transfers are free everywhere:** no launch taxed holder → A or A → B.
+- **The poolable 13:** TAPEOUTX (2 launches), LING, HASH (2), OKCOIN, DUO, ICEBULL, PIKA, RUOK, BODHI, XCAT and 牛回.
+  **All 13 pool and reconcile exactly in a FeeRouteHook pool on the fork**: buy and sell, the route fee to the
+  destination, and every amount in and out of the PoolManager to the wei (`hook/test/IgnixPoolable.fork.t.sol`).
+- **Taxed tokens fail:** IGNIXFROG (3%) fails on the first liquidity add, even without a hook
+  (`hook/test/IgnixFrogPool.fork.t.sol`, in CI).
+- **Some already have V4 pools**, created by other people: Ignix's own hooked pools for OKCOIN and ICEBULL
+  (hook `0xeb7e…6080`, 0.30%); a dynamic-fee hooked pool for TAPEOUTX; and several unhooked pools, some with absurd
+  fees (up to 99.9999%) that look like junk or trap pools.
+- **Running the survey:** it is opt-in (`IGNIX_SURVEY=true`), because it reads live holder balances and takes minutes.
 
 ## Deferred: MILESTONE (agent revenue → lower tier)
 

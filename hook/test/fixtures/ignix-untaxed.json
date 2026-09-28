@@ -1,0 +1,84 @@
+{
+ "note": "graduated Ignix launches with 0 bps loss on transfers into the v4 PoolManager (fork survey 2026-09-28)",
+ "count": 13,
+ "tokens": [
+  {
+   "token": "0x16Aa672ddA63F5ACd0De098c04c4A3e957d1EEEE",
+   "symbol": "TAPEOUTX",
+   "venue": "v2",
+   "holder": "0xff6cc8e276da34c952dc96d8d08824c77d37b0c5"
+  },
+  {
+   "token": "0x21d6359cAB338ea54705E7d04efBaAdD9020EEee",
+   "symbol": "TAPEOUTX",
+   "venue": "v2",
+   "holder": "0x928ac962832b98549c522f40f33f057b0f6cc430"
+  },
+  {
+   "token": "0x0933f674BcfEC78bD0f4720fAf370fD9709FEEeE",
+   "symbol": "LING",
+   "venue": "v2",
+   "holder": "0x19f8aa2ecd59eff42017aeaed8ac98ad4102eafd"
+  },
+  {
+   "token": "0x64f495A29Ea8AF9161F57550dF4dF9dC289feEEE",
+   "symbol": "HASH",
+   "venue": "v2",
+   "holder": "0x9147c109f903eea66dd0b512531ae9ce0377e76a"
+  },
+  {
+   "token": "0xFCf9a6DE16db771ceAC989c9C1528B48A500EEee",
+   "symbol": "HASH",
+   "venue": "v2",
+   "holder": "0x3b58506f694db05d221952e27de1c52f81ab0851"
+  },
+  {
+   "token": "0x2F7fd7a078E59C676a8099c4C4775A3b0549BBbB",
+   "symbol": "OKCOIN",
+   "venue": "v4",
+   "holder": "0x8b05e7c2e1b20655f526c9ae9e329f04daac3627"
+  },
+  {
+   "token": "0xa8198D9BcA089F99A0eB016c0462F7278001eeee",
+   "symbol": "DUO",
+   "venue": "v2",
+   "holder": "0x340e9776a9b9e9eadb54408a4cbdd9bb741e09de"
+  },
+  {
+   "token": "0xf3C02eC2d17C9bcAD4B3Ae38d6A2f4b5D4b5bbBB",
+   "symbol": "ICEBULL",
+   "venue": "v4",
+   "holder": "0xa7d4ffc4eca3c71af150ce302560a9d04a1d2b9f"
+  },
+  {
+   "token": "0x7Cda817043F9C53490BcBDf06B05FeAA8e8beeEe",
+   "symbol": "PIKA",
+   "venue": "v2",
+   "holder": "0xe3b25b40eb9f42e195cfb6ea941992a935f23e5b"
+  },
+  {
+   "token": "0x4b54Acf3B4f5642bE2A734F4DC3f71661ee9Eeee",
+   "symbol": "RUOK",
+   "venue": "v2",
+   "holder": "0x9f70f59e05fc4e00c10660c36d2df4962b47448e"
+  },
+  {
+   "token": "0x0F8a6683a166444254D304871Af443cb84c6EEEE",
+   "symbol": "BODHI",
+   "venue": "v2",
+   "holder": "0x403797459d4cdf80f15c0155ff1716cc41981191"
+  },
+  {
+   "token": "0xbB9A906f1A8906D548C5D94b7079fA31bF09EEee",
+   "symbol": "XCAT",
+   "venue": "v2",
+   "holder": "0x9139acf7e1502055a9c81769c867eb6a6f9466df"
+  },
+  {
+   "token": "0x7ceEA33F02694892DfA066cDAA9494Fa1Fa7eEee",
+   "symbol": "牛回",
+   "venue": "v2",
+   "holder": "0x059aa8bb492422cd4dcea8cdfaebfed66c9c375b"
+  }
+ ]
+}
