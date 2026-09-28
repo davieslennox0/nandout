@@ -1,0 +1,74 @@
+[
+ {
+  "id": 1,
+  "url": "file://DOCS_VIDEO_DIR/title.html",
+  "scroll": 0,
+  "wait": 1500,
+  "caption": "",
+  "text": "Nandout is a programmable decision layer on X Layer. Rules are TapeOut circuits: real NAND netlists, immutable once they are taped out. Anything on chain can ask them a yes or no question, for free, and nobody, including us, can quietly change the answer."
+ },
+ {
+  "id": 2,
+  "url": "https://nandout.xyz/",
+  "scroll": 1500,
+  "wait": 8000,
+  "caption": "Gate \u00b7 every Ignix launch scored by circuits",
+  "text": "Our attestor scores every Ignix launch, more than five thousand of them, every ten minutes: locked liquidity, holder spread, developer selling and agent revenue. Each filter is a circuit taped out on our own TapeOut processor."
+ },
+ {
+  "id": 3,
+  "url": "https://nandout.xyz/lock/0x16aa672dda63f5acd0de098c04c4a3e957d1eeee",
+  "scroll": 900,
+  "wait": 9000,
+  "caption": "Every verdict shows the conditions behind it",
+  "text": "Here is one launch. It passes MARKET SAFE and fails STRICT, and every result shows the exact conditions behind it."
+ },
+ {
+  "id": 4,
+  "url": "file://DOCS_VIDEO_DIR/term1.html",
+  "scroll": 0,
+  "wait": 1200,
+  "caption": "The same answer, on chain, from LatchGate",
+  "text": "The same answer comes straight from LatchGate on chain. A vault or an agent calls this before it deploys capital."
+ },
+ {
+  "id": 5,
+  "url": "https://nandout.xyz/hook",
+  "scroll": 2300,
+  "wait": 9000,
+  "caption": "NexusHook \u00b7 our own demo pool, no swaps by us",
+  "text": "NexusHook is a Uniswap v4 hook. Four more circuits decide each swap's fee tier, from volatility and depth measured against the pool's own baseline, and where the fee goes. Evaluating circuits on every swap would cost up to fifty five percent more gas, so each circuit's full output was computed once, at deploy, and swaps look it up. The hook fee is disclosed and fixed. This is our own demo pool, with liquidity we supplied, and we made no swaps in it."
+ },
+ {
+  "id": 6,
+  "url": "file://DOCS_VIDEO_DIR/term2.html",
+  "scroll": 0,
+  "wait": 1200,
+  "caption": "A hostile TapeOut upgrade changes nothing",
+  "text": "TapeOut's factory is upgradeable, so we test the worst case: a hostile processor upgrade. Every fee tier and every destination stays exactly the same. And when we found that our first hook overcharged partially filled swaps, we fixed it, deprecated the old one, and added this regression test."
+ },
+ {
+  "id": 7,
+  "url": "file://DOCS_VIDEO_DIR/findings.html",
+  "scroll": 0,
+  "wait": 1200,
+  "caption": "Findings, published with the data",
+  "text": "Building this surfaced real facts about the ecosystem. Ignix's transfer tax into Uniswap v4 is set per launch: thirteen of forty nine graduated launches can sit in a v4 pool. Tokens still on their bonding curve cannot be transferred at all. We publish those limits instead of hiding them."
+ },
+ {
+  "id": 8,
+  "url": "https://1-2-230.tapekit.org",
+  "scroll": 1600,
+  "wait": 40000,
+  "caption": "Served from X Layer: 1.2.230.tape",
+  "text": "Even this page is stored on X Layer, served from TapeOut DeWEB and checked against its hash in your browser."
+ },
+ {
+  "id": 9,
+  "url": "file://DOCS_VIDEO_DIR/closing.html",
+  "scroll": 0,
+  "wait": 1200,
+  "caption": "",
+  "text": "Nandout. Rules as circuits: one processor, one compiler, one ownerless evaluator, and consumers that act on the verdict. Nothing moves until the logic says so."
+ }
+]

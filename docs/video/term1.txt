@@ -1,0 +1,9 @@
+$ cast call 0x649373f612d278634Ba8656aF53bCA7D8dc0f940 "check(address,uint256)(bool,uint16)" \
+    0x16aa672dda63f5acd0de098c04c4a3e957d1eeee 7 --rpc-url https://rpc.xlayer.tech   # MARKET_SAFE
+true
+3448
+
+$ cast call 0x649373f612d278634Ba8656aF53bCA7D8dc0f940 "check(address,uint256)(bool,uint16)" \
+    0x16aa672dda63f5acd0de098c04c4a3e957d1eeee 3 --rpc-url https://rpc.xlayer.tech   # STRICT
+false
+3448

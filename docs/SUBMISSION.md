@@ -90,7 +90,7 @@ logic viable on hot paths where per-call evaluation is not.
 | Deploy wallet | `0x934d315C0a9C0866D393B722C1805F2B6b20b816` |
 | Live app | https://nandout.xyz |
 | On-chain site (DeWEB) | https://1-2-230.tapekit.org (`1.2.230.tape`) |
-| Demo video | _to be added_ (script: [`DEMO-SCRIPT.md`](DEMO-SCRIPT.md)) |
+| Demo video | [nandout-demo.mp4](https://github.com/davieslennox0/nandout/releases/download/demo-video/nandout-demo.mp4) (2:14; recorded 2026-09-28 from the live site with real terminal output; synthetic narration; how it was made: [`video/`](video/)) |
 
 ## Contracts (X Layer, verified on OKLink)
 

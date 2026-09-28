@@ -1,0 +1,18 @@
+<!doctype html><meta charset=utf-8><style>body{margin:0;background:#0a0a0b;color:#d3d8de;font:22px/1.5 ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;width:1280px;height:720px;overflow:hidden}
+.wrap{padding:64px 80px}h1{color:#f4f6f9;font-size:58px;line-height:1.08;letter-spacing:-.03em;margin:18px 0}
+.eye{display:inline-block;padding:6px 14px;border-radius:999px;background:rgba(255,255,255,.06);color:#8b929a;font-size:18px}
+.dim{color:#8b929a}.brand{display:flex;gap:12px;align-items:center;font-weight:700;font-size:28px;color:#f4f6f9}
+pre{background:#0f1012;border:1px solid rgba(255,255,255,.08);border-radius:18px;padding:26px 30px;font:19px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:#d3d8de;white-space:pre-wrap;margin:0}
+.g{color:#6b9e7d}.a{color:#c99a4e}table{border-collapse:collapse;font-size:21px;margin-top:14px}td,th{padding:9px 18px;border-bottom:1px solid rgba(255,255,255,.08);text-align:left}th{color:#8b929a;font-weight:500}</style><div class=wrap><span class=eye>Fork tests against the real X Layer contracts · captured 2026-09-28</span><pre style="margin-top:22px">$ forge test --mt test_maliciousTapeOutUpgradeCannotChangeTierOrDestination -vv
+Ran 1 test for test/FeeRouteFinal.fork.t.sol:FeeRouteFinalForkTest
+<span class=g>[PASS]</span> test_maliciousTapeOutUpgradeCannotChangeTierOrDestination() (gas: 95777223)
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 36.18s (12.88s CPU time)
+Ran 1 test suite in 36.25s (36.18s CPU time): 1 tests passed, 0 failed, 0 skipped (1 total tests)
+
+$ forge test --mt test_partialFillPaysHookFeeOnlyOnFilledAmount -vv
+<span class=g>[PASS]</span> test_partialFillPaysHookFeeOnlyOnFilledAmount() (gas: 58538159)
+  specified input: 1000000000000.000000000000000000
+  actually filled input: 5014.777011556981991690
+  hook fee (output token), on the filled amount only: 4.987272070749096133
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 35.62s (14.04s CPU time)
+</pre></div>

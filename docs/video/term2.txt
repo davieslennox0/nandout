@@ -1,0 +1,12 @@
+$ forge test --mt test_maliciousTapeOutUpgradeCannotChangeTierOrDestination -vv
+Ran 1 test for test/FeeRouteFinal.fork.t.sol:FeeRouteFinalForkTest
+[PASS] test_maliciousTapeOutUpgradeCannotChangeTierOrDestination() (gas: 95777223)
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 36.18s (12.88s CPU time)
+Ran 1 test suite in 36.25s (36.18s CPU time): 1 tests passed, 0 failed, 0 skipped (1 total tests)
+
+$ forge test --mt test_partialFillPaysHookFeeOnlyOnFilledAmount -vv
+[PASS] test_partialFillPaysHookFeeOnlyOnFilledAmount() (gas: 58538159)
+  specified input: 1000000000000.000000000000000000
+  actually filled input: 5014.777011556981991690
+  hook fee (output token), on the filled amount only: 4.987272070749096133
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 35.62s (14.04s CPU time)
