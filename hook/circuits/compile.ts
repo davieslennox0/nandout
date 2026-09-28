@@ -38,7 +38,35 @@ const tiers = Array.from({ length: 1 << N_FACTS }, (_, f) => ((evalRule(vol, f, 
 let table = 0n;
 tiers.forEach((t, f) => { table |= BigInt(t) << BigInt(2 * f); });
 
-const file = join(dirname(fileURLToPath(import.meta.url)), '../test/fixtures/fee-circuits.json');
-writeFileSync(file, JSON.stringify({ schema: FEE_BITS, nFacts: N_FACTS, circuits: out, tiers, table: `0x${table.toString(16).padStart(16, '0')}` }, null, 2) + '\n');
+const fixtures = join(dirname(fileURLToPath(import.meta.url)), '../test/fixtures');
+writeFileSync(join(fixtures, 'fee-circuits.json'), JSON.stringify({ schema: FEE_BITS, nFacts: N_FACTS, circuits: out, tiers, table: `0x${table.toString(16).padStart(16, '0')}` }, null, 2) + '\n');
 console.log(out.map((c) => `${c.name}: ${c.gateCount} gates  ${c.infix}`).join('\n'));
 console.log('tiers', tiers.join(''));
+
+// ---- FeeRoute: where the extra route fee goes ---------------------------------------------------------------------
+
+/** FeeRouteHook's route facts. Bits 3..4 are spare and always 0 (no attested or arithmetic facts). */
+export const ROUTE_BITS = {
+  IS_BUY: 0, // the swap outputs the pool's token (direction, from beforeSwap params)
+  VOL_HIGH: 1, // same windowed fact as the tier circuits
+  DEPTH_THIN: 2, // same windowed fact as the tier circuits
+} as const satisfies Schema;
+
+/** route = (ROUTE_GUARD << 1) | ROUTE_SPLIT -> 0 reserve (calm buy), 1 holder sink (calm sell), 2/3 LPs (guarded). */
+export const ROUTE_CIRCUITS = {
+  ROUTE_SPLIT: { not: 'IS_BUY' },
+  ROUTE_GUARD: { any: ['VOL_HIGH', 'DEPTH_THIN'] },
+};
+
+const routeOut = Object.entries(ROUTE_CIRCUITS).map(([name, dsl]) => {
+  const c = compile(name, dsl, ROUTE_BITS);
+  return { name, infix: c.infix, netlist: c.netlist, netlistHash: c.netlistHash, nandCount: c.nandCount, latchCount: c.latchCount, gateCount: c.gateCount };
+});
+const split = parseRule(ROUTE_CIRCUITS.ROUTE_SPLIT, '$', ROUTE_BITS);
+const guard = parseRule(ROUTE_CIRCUITS.ROUTE_GUARD, '$', ROUTE_BITS);
+const routes = Array.from({ length: 1 << N_FACTS }, (_, f) => ((evalRule(guard, f, ROUTE_BITS) ? 1 : 0) << 1) | (evalRule(split, f, ROUTE_BITS) ? 1 : 0));
+let routeTable = 0n;
+routes.forEach((r, f) => { routeTable |= BigInt(r) << BigInt(2 * f); });
+writeFileSync(join(fixtures, 'route-circuits.json'), JSON.stringify({ schema: ROUTE_BITS, nFacts: N_FACTS, circuits: routeOut, routes, table: `0x${routeTable.toString(16).padStart(16, '0')}` }, null, 2) + '\n');
+console.log(routeOut.map((c) => `${c.name}: ${c.gateCount} gates  ${c.infix}`).join('\n'));
+console.log('routes', routes.join(''));

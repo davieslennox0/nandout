@@ -1,13 +1,19 @@
 # Nandout: Genesis Transistor Hackathon submission
 
 **A programmable on-chain decision layer on X Layer.** Rules are taped-out TapeOut circuits: immutable NAND netlists
-evaluated by an ownerless evaluator. Consumers pack facts into bits and act on the circuit's verdict. One processor, one
-compiler, one evaluator posture, three consumers:
+evaluated by an ownerless evaluator. Consumers pack facts into bits and act on the circuit's verdict. The processor's
+circuits govern whether capital should enter a token (Gate), what a swap costs (fee tier), and where that fee goes
+(FeeRoute). One processor, one compiler, one evaluator posture:
 
 - **Gate** (live): every Ignix launch is scored by filter circuits; vaults and agents call `LatchGate.check` / `checkMany`.
-- **NexusHook** (fork-proven, not deployed): a Uniswap v4 hook whose LP fee tier comes from two taped-out circuits.
-  - The full output is precomputed at registration, so each swap pays +9.8% gas instead of +53% for live evaluation.
-  - It survives a malicious TapeOut upgrade (tested).
+- **NexusHook fee tier** (fork-proven, not deployed): a Uniswap v4 hook decides what a swap costs.
+  - Its LP fee tier comes from two taped-out circuits.
+  - The full output is precomputed at registration, so each swap pays +11% gas instead of +55% for live evaluation.
+- **NexusHook FeeRoute** (fork-proven, not deployed): two more circuits decide where the fee goes.
+  - Calm buys go to a reserve, calm sells to a holder sink, and LPs get it when volatility is high or depth is thin.
+  - Destinations and mapping are immutable, and a malicious TapeOut upgrade cannot redirect fees (tested).
+  - Direction-asymmetric fee routing exists in the wild (e.g. a Solana token routing buys to a reserve and sells to
+    holder payouts); our contribution is making the routing policy an immutable circuit rather than an admin setting.
   - Details: [`HOOK.md`](HOOK.md).
 - **Lock** (deployed, narrow): creator allocations are released only when an unlock circuit passes. Two limits:
   - Ignix tokens cannot be locked before they graduate: every transfer reverts with `CurveOnly()`.

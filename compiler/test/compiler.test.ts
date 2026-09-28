@@ -76,6 +76,9 @@ test('custom bit schema: compiles and verifies with its own names, rejects Latch
   const c = compile('G', { any: ['VOL_HIGH', { all: ['VOL_ELEVATED', 'DEPTH_THIN'] }] }, FEE);
   const nl = decode(Buffer.from(c.netlist.slice(2), 'hex'), N_IN, N_OUT);
   for (let x = 0; x < 8; x++) assert.equal(step(nl, 0, x).outputs & 1, (x & 1) || ((x & 2) && (x & 4)) ? 1 : 0, `x=${x}`);
+  const n = compile('N', { not: 'VOL_HIGH' }, FEE); // `not` must carry the schema too
+  const nn = decode(Buffer.from(n.netlist.slice(2), 'hex'), N_IN, N_OUT);
+  for (let x = 0; x < 2; x++) assert.equal(step(nn, 0, x).outputs & 1, x ? 0 : 1);
   assert.throws(() => compile('BAD', 'LP_LOCKED', FEE), DslError);
   assert.throws(() => compile('BAD', 'X', { X: 16 }), DslError);
 });

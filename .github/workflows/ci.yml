@@ -29,8 +29,8 @@ jobs:
       - run: pnpm --filter @latch/compiler typecheck
       - name: Fixtures are up to date with the compiler
         run: pnpm compile:circuits && git diff --exit-code contracts/test/fixtures/circuits.json
-      - name: Fee-hook circuit fixture is up to date (same compiler, exhaustive verification)
-        run: pnpm --filter @latch/compiler exec tsx ../hook/circuits/compile.ts && git diff --exit-code hook/test/fixtures/fee-circuits.json
+      - name: Hook circuit fixtures are up to date (fee tier + route; same compiler, exhaustive verification)
+        run: pnpm --filter @latch/compiler exec tsx ../hook/circuits/compile.ts && git diff --exit-code hook/test/fixtures/fee-circuits.json hook/test/fixtures/route-circuits.json
       - run: pnpm --filter @latch/attestor test
       - run: pnpm --filter @latch/attestor typecheck
       - run: pnpm --filter @latch/agent test

@@ -17,6 +17,7 @@ import {MockERC20} from "solmate/src/test/utils/mocks/MockERC20.sol";
 import {ICPU} from "latch/vendor/tapeout/interfaces/ICPU.sol";
 import {ICircuitRegistryView, ILatchEvaluator} from "latch/interfaces/ILatch.sol";
 import {FeeCircuitHook} from "../src/FeeCircuitHook.sol";
+import {FeeRouteHook} from "../src/FeeRouteHook.sol";
 
 interface ITransistors {
     function mint(uint256 id, uint256 amount) external payable;
@@ -55,9 +56,12 @@ contract GasReport is Script {
     function run() external {
         require(block.chainid == 196, "X Layer fork only");
         string memory json = vm.readFile("test/fixtures/fee-circuits.json");
+        string memory rjson = vm.readFile("test/fixtures/route-circuits.json");
         vm.startBroadcast();
         FeeCircuitHook.Guard memory v = _tapeout(json, 0);
         FeeCircuitHook.Guard memory d = _tapeout(json, 1);
+        FeeCircuitHook.Guard memory rs = _tapeout(rjson, 0);
+        FeeCircuitHook.Guard memory rg = _tapeout(rjson, 1);
         MockERC20 a = new MockERC20("A", "A", 18); MockERC20 b = new MockERC20("B", "B", 18);
         (t0, t1) = address(a) < address(b) ? (a, b) : (b, a);
         t0.mint(msg.sender, 1e40); t1.mint(msg.sender, 1e40);
@@ -68,12 +72,18 @@ contract GasReport is Script {
         uint24[4] memory fees = [uint24(500), 3000, 6000, 10000];
         FeeCircuitHook.Thresholds memory t = FeeCircuitHook.Thresholds(20_000, 5_000, 1e22, 1e21);
         bytes memory args = abi.encode(PM, EVALUATOR, TAPEOUT, v, d, fees, t, uint32(60));
-        address table = _deploy(abi.encodePacked(type(FeeCircuitHook).creationCode, args));
-        address live = _deploy(abi.encodePacked(type(LiveEvalHook).creationCode, args));
+        address table = _deploy(abi.encodePacked(type(FeeCircuitHook).creationCode, args), 1 << 7);
+        address live = _deploy(abi.encodePacked(type(LiveEvalHook).creationCode, args), 1 << 7);
+        FeeRouteHook.RouteConfig memory r = FeeRouteHook.RouteConfig(
+            rs, rg, [address(uint160(uint256(keccak256("reserve")))), address(uint160(uint256(keccak256("holders")))), address(0), address(0)],
+            100, Currency.wrap(address(t1))
+        );
+        address route = _deploy(abi.encodePacked(type(FeeRouteHook).creationCode, abi.encode(PM, EVALUATOR, TAPEOUT, v, d, fees, t, uint32(60), r)), (1 << 7) | (1 << 6) | (1 << 2));
 
         _swaps("plain_static_0.30", _pool(address(0), 3000));
-        _swaps("hook_table", _pool(table, LPFeeLibrary.DYNAMIC_FEE_FLAG));
-        _swaps("hook_live_eval", _pool(live, LPFeeLibrary.DYNAMIC_FEE_FLAG));
+        _swaps("hook_tier_table", _pool(table, LPFeeLibrary.DYNAMIC_FEE_FLAG));
+        _swaps("hook_tier_live_eval", _pool(live, LPFeeLibrary.DYNAMIC_FEE_FLAG));
+        _swaps("hook_tier_plus_route", _pool(route, LPFeeLibrary.DYNAMIC_FEE_FLAG));
         vm.stopBroadcast();
     }
 
@@ -87,12 +97,12 @@ contract GasReport is Script {
         return FeeCircuitHook.Guard(ICPU(PROCESSOR), id, vm.parseJsonBytes32(json, string.concat(p, ".netlistHash")));
     }
 
-    function _deploy(bytes memory init) internal returns (address addr) {
+    function _deploy(bytes memory init, uint160 flags) internal returns (address addr) {
         bytes32 h = keccak256(init);
         uint256 salt;
         for (;; salt++) {
             addr = address(uint160(uint256(keccak256(abi.encodePacked(bytes1(0xff), CREATE2, bytes32(salt), h)))));
-            if (uint160(addr) & ((1 << 14) - 1) == 1 << 7) break;
+            if (uint160(addr) & ((1 << 14) - 1) == flags) break;
         }
         (bool ok,) = CREATE2.call(abi.encodePacked(bytes32(salt), init));
         require(ok && addr.code.length > 0, "create2");
@@ -106,7 +116,7 @@ contract GasReport is Script {
     }
 
     function _swaps(string memory label, PoolKey memory key) internal {
-        for (uint256 i = 0; i < 4; i++) {
+        for (uint256 i = 0; i < 6; i++) {
             bool z = i % 2 == 0;
             swapR.swap(key, SwapParams(z, -1e20, z ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1), PoolSwapTest.TestSettings(false, false), "");
             console2.log("SWAP", label, i);

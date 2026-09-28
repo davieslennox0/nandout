@@ -61,7 +61,7 @@ contract EvilCPU {
 /// @notice FeeCircuitHook against the real X Layer contracts on a local fork (nothing is broadcast):
 ///         PoolManager 0x360E…FB32, Nandout's TapeOut processor 0x8A60…a58E, Nandout's LatchEvaluator 0x8cA3…2D03.
 ///         Skipped unless XLAYER_RPC_URL is set.
-contract FeeCircuitHookForkTest is Test {
+abstract contract HookForkBase is Test {
     using StateLibrary for IPoolManager;
     using PoolIdLibrary for PoolKey;
 
@@ -93,7 +93,7 @@ contract FeeCircuitHookForkTest is Test {
     PoolModifyLiquidityTest internal liqRouter;
     address internal taper = makeAddr("taper");
 
-    function setUp() public {
+    function setUp() public virtual {
         string memory rpc = vm.envOr("XLAYER_RPC_URL", string(""));
         if (bytes(rpc).length == 0) vm.skip(true);
         vm.createSelectFork(rpc);
@@ -117,6 +117,119 @@ contract FeeCircuitHookForkTest is Test {
         t0.approve(address(liqRouter), type(uint256).max);
         t1.approve(address(liqRouter), type(uint256).max);
     }
+
+    // ---- helpers ----------------------------------------------------------------------------------------------------
+
+    function _tapeout(string memory json, uint256 i) internal returns (FeeCircuitHook.Guard memory g) {
+        string memory p = string.concat(".circuits[", vm.toString(i), "]");
+        bytes memory nl = vm.parseJsonBytes(json, string.concat(p, ".netlist"));
+        uint256 nand = vm.parseJsonUint(json, string.concat(p, ".nandCount"));
+        ITransistors tr = ITransistors(ICircuitsTapeout(PROCESSOR).transistors());
+        vm.deal(taper, 1 ether);
+        vm.startPrank(taper);
+        tr.mint{value: tr.mintPrice() * nand + tr.protocolFee()}(0, nand);
+        uint256 id = ICircuitsTapeout(PROCESSOR).tapeout{value: ICircuitsTapeout(PROCESSOR).TAPEOUT_FEE()}(nl, 16, 1);
+        vm.stopPrank();
+        g = FeeCircuitHook.Guard(ICPU(PROCESSOR), id, vm.parseJsonBytes32(json, string.concat(p, ".netlistHash")));
+        assertEq(keccak256(ICPU(PROCESSOR).netlist(id)), g.netlistHash, "taped-out bytes == compiled bytes");
+    }
+
+    function _liveTier(uint8 f) internal view returns (uint8) {
+        bytes memory in_ = abi.encodePacked(f, uint8(0));
+        uint8 v = uint8(ICPU(PROCESSOR).eval(volGuard.circuitId, in_)[0]) & 1;
+        uint8 d = uint8(ICPU(PROCESSOR).eval(depthGuard.circuitId, in_)[0]) & 1;
+        return (v << 1) | d;
+    }
+
+    function _deployHook() internal returns (FeeCircuitHook) {
+        return FeeCircuitHook(_deploy(type(FeeCircuitHook).creationCode));
+    }
+
+    /// Mines a CREATE2 salt so the low 14 address bits are exactly BEFORE_SWAP_FLAG, then deploys.
+    function _deploy(bytes memory creationCode) internal returns (address addr) {
+        return _deployWith(abi.encodePacked(creationCode, abi.encode(PM, EVALUATOR, TAPEOUT, volGuard, depthGuard, FEES, T, EPOCH)), BEFORE_SWAP_FLAG);
+    }
+
+    /// Mines a CREATE2 salt whose address carries exactly `flags` in its low 14 bits, then deploys `init`.
+    function _deployWith(bytes memory init, uint160 flags) internal returns (address addr) {
+        bytes32 h = keccak256(init);
+        uint256 salt;
+        for (;; salt++) {
+            addr = address(uint160(uint256(keccak256(abi.encodePacked(bytes1(0xff), address(this), bytes32(salt), h)))));
+            if (uint160(addr) & ALL_HOOK_FLAGS == flags) break;
+        }
+        address got;
+        assembly { got := create2(0, add(init, 0x20), mload(init), salt) }
+        require(got == addr && got.code.length > 0, "deploy");
+    }
+
+    function _deployRevert(FeeCircuitHook.Guard memory v, FeeCircuitHook.Guard memory d) internal returns (bytes4) {
+        bytes32 h = keccak256(abi.encodePacked(type(FeeCircuitHook).creationCode, abi.encode(PM, EVALUATOR, TAPEOUT, v, d, FEES, T, EPOCH)));
+        uint256 salt;
+        for (;; salt++) {
+            address a = address(uint160(uint256(keccak256(abi.encodePacked(bytes1(0xff), address(this), bytes32(salt), h)))));
+            if (uint160(a) & ALL_HOOK_FLAGS == BEFORE_SWAP_FLAG) break;
+        }
+        try new FeeCircuitHook{salt: bytes32(salt)}(PM, EVALUATOR, TAPEOUT, v, d, FEES, T, EPOCH) {
+            revert("expected revert");
+        } catch (bytes memory reason) {
+            return bytes4(reason);
+        }
+    }
+
+    function _pool(address hook, uint128 liquidity) internal returns (PoolKey memory key) {
+        key = PoolKey(Currency.wrap(address(t0)), Currency.wrap(address(t1)), LPFeeLibrary.DYNAMIC_FEE_FLAG, 60, IHooks(hook));
+        PM.initialize(key, TickMath.getSqrtPriceAtTick(0));
+        liqRouter.modifyLiquidity(key, ModifyLiquidityParams(-6000, 6000, int256(uint256(liquidity)), 0), "");
+    }
+
+    function _id(PoolKey memory key) internal pure returns (PoolId) {
+        return key.toId();
+    }
+
+    /// Exact-input swap; returns the LP fee the PoolManager applied (from its Swap event).
+    function _swapFee(PoolKey memory key, bool zeroForOne, uint256 amountIn) internal returns (uint24 fee) {
+        vm.recordLogs();
+        swapRouter.swap(
+            key,
+            SwapParams(zeroForOne, -int256(amountIn), zeroForOne ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1),
+            PoolSwapTest.TestSettings(false, false),
+            ""
+        );
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        for (uint256 i = 0; i < logs.length; i++) {
+            if (logs[i].emitter == address(PM) && logs[i].topics[0] == SWAP_EVENT) {
+                (,,,,, fee) = abi.decode(logs[i].data, (int128, int128, uint160, uint128, int24, uint24));
+                return fee;
+            }
+        }
+        revert("no Swap event");
+    }
+
+    /// Swaps until the pool reaches `target` tick; returns (amount paid in, amount received) in raw token units.
+    function _swapToTick(PoolKey memory key, int24 target) internal returns (uint256 amountIn, uint256 amountOut) {
+        (, int24 tick,,) = PM.getSlot0(_id(key));
+        bool zeroForOne = target < tick;
+        BalanceDelta d = swapRouter.swap(
+            key, SwapParams(zeroForOne, -1e36, TickMath.getSqrtPriceAtTick(target)), PoolSwapTest.TestSettings(false, false), ""
+        );
+        int128 a0 = d.amount0();
+        int128 a1 = d.amount1();
+        (amountIn, amountOut) = zeroForOne ? (uint256(uint128(-a0)), uint256(uint128(a1))) : (uint256(uint128(-a1)), uint256(uint128(a0)));
+    }
+
+    function _sstore2Read(address pointer) internal view returns (bytes memory) {
+        bytes memory code = pointer.code;
+        bytes memory out = new bytes(code.length - 1);
+        for (uint256 i = 1; i < code.length; i++) out[i - 1] = code[i];
+        return out;
+    }
+}
+
+/// @notice The fee-tier tests (see HookForkBase for the fork setup).
+contract FeeCircuitHookForkTest is HookForkBase {
+    using StateLibrary for IPoolManager;
+    using PoolIdLibrary for PoolKey;
 
     // ---- 1. the table is the circuits' complete output ------------------------------------------------------------
 
@@ -246,108 +359,5 @@ contract FeeCircuitHookForkTest is Test {
             epochsRaised++;
         }
         emit log_named_uint("epochs (~60 s each) the raised tier lasted", epochsRaised);
-    }
-
-    // ---- helpers ----------------------------------------------------------------------------------------------------
-
-    function _tapeout(string memory json, uint256 i) internal returns (FeeCircuitHook.Guard memory g) {
-        string memory p = string.concat(".circuits[", vm.toString(i), "]");
-        bytes memory nl = vm.parseJsonBytes(json, string.concat(p, ".netlist"));
-        uint256 nand = vm.parseJsonUint(json, string.concat(p, ".nandCount"));
-        ITransistors tr = ITransistors(ICircuitsTapeout(PROCESSOR).transistors());
-        vm.deal(taper, 1 ether);
-        vm.startPrank(taper);
-        tr.mint{value: tr.mintPrice() * nand + tr.protocolFee()}(0, nand);
-        uint256 id = ICircuitsTapeout(PROCESSOR).tapeout{value: ICircuitsTapeout(PROCESSOR).TAPEOUT_FEE()}(nl, 16, 1);
-        vm.stopPrank();
-        g = FeeCircuitHook.Guard(ICPU(PROCESSOR), id, vm.parseJsonBytes32(json, string.concat(p, ".netlistHash")));
-        assertEq(keccak256(ICPU(PROCESSOR).netlist(id)), g.netlistHash, "taped-out bytes == compiled bytes");
-    }
-
-    function _liveTier(uint8 f) internal view returns (uint8) {
-        bytes memory in_ = abi.encodePacked(f, uint8(0));
-        uint8 v = uint8(ICPU(PROCESSOR).eval(volGuard.circuitId, in_)[0]) & 1;
-        uint8 d = uint8(ICPU(PROCESSOR).eval(depthGuard.circuitId, in_)[0]) & 1;
-        return (v << 1) | d;
-    }
-
-    function _deployHook() internal returns (FeeCircuitHook) {
-        return FeeCircuitHook(_deploy(type(FeeCircuitHook).creationCode));
-    }
-
-    /// Mines a CREATE2 salt so the low 14 address bits are exactly BEFORE_SWAP_FLAG, then deploys.
-    function _deploy(bytes memory creationCode) internal returns (address addr) {
-        bytes memory init = abi.encodePacked(creationCode, abi.encode(PM, EVALUATOR, TAPEOUT, volGuard, depthGuard, FEES, T, EPOCH));
-        bytes32 h = keccak256(init);
-        uint256 salt;
-        for (;; salt++) {
-            addr = address(uint160(uint256(keccak256(abi.encodePacked(bytes1(0xff), address(this), bytes32(salt), h)))));
-            if (uint160(addr) & ALL_HOOK_FLAGS == BEFORE_SWAP_FLAG) break;
-        }
-        address got;
-        assembly { got := create2(0, add(init, 0x20), mload(init), salt) }
-        require(got == addr && got.code.length > 0, "deploy");
-    }
-
-    function _deployRevert(FeeCircuitHook.Guard memory v, FeeCircuitHook.Guard memory d) internal returns (bytes4) {
-        bytes32 h = keccak256(abi.encodePacked(type(FeeCircuitHook).creationCode, abi.encode(PM, EVALUATOR, TAPEOUT, v, d, FEES, T, EPOCH)));
-        uint256 salt;
-        for (;; salt++) {
-            address a = address(uint160(uint256(keccak256(abi.encodePacked(bytes1(0xff), address(this), bytes32(salt), h)))));
-            if (uint160(a) & ALL_HOOK_FLAGS == BEFORE_SWAP_FLAG) break;
-        }
-        try new FeeCircuitHook{salt: bytes32(salt)}(PM, EVALUATOR, TAPEOUT, v, d, FEES, T, EPOCH) {
-            revert("expected revert");
-        } catch (bytes memory reason) {
-            return bytes4(reason);
-        }
-    }
-
-    function _pool(address hook, uint128 liquidity) internal returns (PoolKey memory key) {
-        key = PoolKey(Currency.wrap(address(t0)), Currency.wrap(address(t1)), LPFeeLibrary.DYNAMIC_FEE_FLAG, 60, IHooks(hook));
-        PM.initialize(key, TickMath.getSqrtPriceAtTick(0));
-        liqRouter.modifyLiquidity(key, ModifyLiquidityParams(-6000, 6000, int256(uint256(liquidity)), 0), "");
-    }
-
-    function _id(PoolKey memory key) internal pure returns (PoolId) {
-        return key.toId();
-    }
-
-    /// Exact-input swap; returns the LP fee the PoolManager applied (from its Swap event).
-    function _swapFee(PoolKey memory key, bool zeroForOne, uint256 amountIn) internal returns (uint24 fee) {
-        vm.recordLogs();
-        swapRouter.swap(
-            key,
-            SwapParams(zeroForOne, -int256(amountIn), zeroForOne ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1),
-            PoolSwapTest.TestSettings(false, false),
-            ""
-        );
-        Vm.Log[] memory logs = vm.getRecordedLogs();
-        for (uint256 i = 0; i < logs.length; i++) {
-            if (logs[i].emitter == address(PM) && logs[i].topics[0] == SWAP_EVENT) {
-                (,,,,, fee) = abi.decode(logs[i].data, (int128, int128, uint160, uint128, int24, uint24));
-                return fee;
-            }
-        }
-        revert("no Swap event");
-    }
-
-    /// Swaps until the pool reaches `target` tick; returns (amount paid in, amount received) in raw token units.
-    function _swapToTick(PoolKey memory key, int24 target) internal returns (uint256 amountIn, uint256 amountOut) {
-        (, int24 tick,,) = PM.getSlot0(_id(key));
-        bool zeroForOne = target < tick;
-        BalanceDelta d = swapRouter.swap(
-            key, SwapParams(zeroForOne, -1e36, TickMath.getSqrtPriceAtTick(target)), PoolSwapTest.TestSettings(false, false), ""
-        );
-        int128 a0 = d.amount0();
-        int128 a1 = d.amount1();
-        (amountIn, amountOut) = zeroForOne ? (uint256(uint128(-a0)), uint256(uint128(a1))) : (uint256(uint128(-a1)), uint256(uint128(a0)));
-    }
-
-    function _sstore2Read(address pointer) internal view returns (bytes memory) {
-        bytes memory code = pointer.code;
-        bytes memory out = new bytes(code.length - 1);
-        for (uint256 i = 1; i < code.length; i++) out[i - 1] = code[i];
-        return out;
     }
 }

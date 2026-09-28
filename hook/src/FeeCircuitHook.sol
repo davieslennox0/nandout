@@ -129,7 +129,7 @@ contract FeeCircuitHook is IHooks {
 
     /// @dev Same checks as LatchGate.registerFilter: registered TapeOut CPU, 16-in/1-out, combinational, the exact
     ///      netlist the deployer verified, and a self-contained shape (any REF reverts in analyze).
-    function _snapshot(ILatchEvaluator ev, ICircuitRegistryView tapeout, Guard memory g) private returns (address) {
+    function _snapshot(ILatchEvaluator ev, ICircuitRegistryView tapeout, Guard memory g) internal returns (address) {
         if (!tapeout.isCPU(address(g.cpu))) revert NotTapeOutCircuit(address(g.cpu));
         (uint32 nIn, uint32 nOut, uint32 nState, uint32 gateCount) = g.cpu.circuitInfo(g.circuitId);
         if (nIn != 16 || nOut != 1 || nState != 0) revert BadShape(nIn, nOut, nState);
@@ -141,7 +141,7 @@ contract FeeCircuitHook is IHooks {
         return SSTORE2.write(nl);
     }
 
-    function getHookPermissions() public pure returns (Hooks.Permissions memory p) {
+    function getHookPermissions() public pure virtual returns (Hooks.Permissions memory p) {
         p.beforeSwap = true;
     }
 
@@ -169,12 +169,13 @@ contract FeeCircuitHook is IHooks {
 
     // ---- hook ---------------------------------------------------------------------------------------------------
 
-    function beforeSwap(address, PoolKey calldata key, SwapParams calldata, bytes calldata)
+    function beforeSwap(address, PoolKey calldata key, SwapParams calldata params, bytes calldata)
         external
         returns (bytes4, BeforeSwapDelta, uint24)
     {
         if (msg.sender != address(poolManager)) revert NotPoolManager();
         uint8 facts = _facts(key);
+        _onFacts(key, params, facts);
         uint24 fee = feeOfTier(_tier(facts));
         return (IHooks.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, fee | LPFeeLibrary.OVERRIDE_FEE_FLAG);
     }
@@ -198,6 +199,9 @@ contract FeeCircuitHook is IHooks {
         }
         return _pack(w, cm, liq);
     }
+
+    /// @dev Extension point for consumers of the same facts (FeeRouteHook). No-op here.
+    function _onFacts(PoolKey calldata key, SwapParams calldata params, uint8 facts) internal virtual {}
 
     /// @dev Tier lookup. Virtual only so the gas benchmark can compare against live evaluation.
     function _tier(uint8 facts) internal view virtual returns (uint8) {
@@ -244,7 +248,7 @@ contract FeeCircuitHook is IHooks {
     function afterAddLiquidity(address, PoolKey calldata, ModifyLiquidityParams calldata, BalanceDelta, BalanceDelta, bytes calldata) external pure returns (bytes4, BalanceDelta) { revert HookNotImplemented(); }
     function beforeRemoveLiquidity(address, PoolKey calldata, ModifyLiquidityParams calldata, bytes calldata) external pure returns (bytes4) { revert HookNotImplemented(); }
     function afterRemoveLiquidity(address, PoolKey calldata, ModifyLiquidityParams calldata, BalanceDelta, BalanceDelta, bytes calldata) external pure returns (bytes4, BalanceDelta) { revert HookNotImplemented(); }
-    function afterSwap(address, PoolKey calldata, SwapParams calldata, BalanceDelta, bytes calldata) external pure returns (bytes4, int128) { revert HookNotImplemented(); }
+    function afterSwap(address, PoolKey calldata, SwapParams calldata, BalanceDelta, bytes calldata) external virtual returns (bytes4, int128) { revert HookNotImplemented(); }
     function beforeDonate(address, PoolKey calldata, uint256, uint256, bytes calldata) external pure returns (bytes4) { revert HookNotImplemented(); }
     function afterDonate(address, PoolKey calldata, uint256, uint256, bytes calldata) external pure returns (bytes4) { revert HookNotImplemented(); }
 }

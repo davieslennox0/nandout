@@ -1,0 +1,63 @@
+{
+  "schema": {
+    "IS_BUY": 0,
+    "VOL_HIGH": 1,
+    "DEPTH_THIN": 2
+  },
+  "nFacts": 5,
+  "circuits": [
+    {
+      "name": "ROUTE_SPLIT",
+      "infix": "NOT IS_BUY",
+      "netlist": "0x00000002000002",
+      "netlistHash": "0x30df9b0a79f2a5dada743a27e819951da9caac8b4d5aea14835f70994a3b15b9",
+      "nandCount": 1,
+      "latchCount": 0,
+      "gateCount": 1
+    },
+    {
+      "name": "ROUTE_GUARD",
+      "infix": "VOL_HIGH OR DEPTH_THIN",
+      "netlist": "0x000000030000030000000400000400000012000013",
+      "netlistHash": "0x5ffc1cd092fa5f4a2b0e958a0e63cb6f510deae6e39628b29aa46eeda4ed39a0",
+      "nandCount": 3,
+      "latchCount": 0,
+      "gateCount": 3
+    }
+  ],
+  "routes": [
+    1,
+    0,
+    3,
+    2,
+    3,
+    2,
+    3,
+    2,
+    1,
+    0,
+    3,
+    2,
+    3,
+    2,
+    3,
+    2,
+    1,
+    0,
+    3,
+    2,
+    3,
+    2,
+    3,
+    2,
+    1,
+    0,
+    3,
+    2,
+    3,
+    2,
+    3,
+    2
+  ],
+  "table": "0xbbb1bbb1bbb1bbb1"
+}

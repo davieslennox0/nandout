@@ -1,5 +1,5 @@
 {
-  "forkBlock": 71784310,
+  "forkBlock": 71787445,
   "gasPriceWei": 20000001,
   "rows": [
     {
@@ -8,40 +8,61 @@
         139471,
         133888,
         122435,
+        116788,
+        122435,
         116788
       ],
-      "steady": 124370,
+      "steady": 119612,
       "overPlain": 0,
       "overPlainPct": 0
     },
     {
-      "pool": "hook_table",
+      "pool": "hook_tier_table",
       "swaps": [
         192657,
         146062,
         134609,
+        133405,
+        134609,
         128962
       ],
-      "steady": 136544,
-      "overPlain": 12174,
-      "overPlainPct": 9.8
+      "steady": 132896,
+      "overPlain": 13284,
+      "overPlainPct": 11.1
     },
     {
-      "pool": "hook_live_eval",
+      "pool": "hook_tier_live_eval",
       "swaps": [
-        246410,
-        199818,
-        188365,
-        182718
+        246422,
+        199830,
+        188377,
+        182730,
+        188377,
+        182730
       ],
-      "steady": 190300,
-      "overPlain": 65930,
-      "overPlainPct": 53
+      "steady": 185554,
+      "overPlain": 65942,
+      "overPlainPct": 55.1
+    },
+    {
+      "pool": "hook_tier_plus_route",
+      "swaps": [
+        226851,
+        180303,
+        151706,
+        146103,
+        151706,
+        146103
+      ],
+      "steady": 148905,
+      "overPlain": 29293,
+      "overPlainPct": 24.5
     }
   ],
   "hookDeployGas": [
     3421444,
-    3539452
+    3539452,
+    5240135
   ],
   "tapeoutGas": [
     {
@@ -59,6 +80,22 @@
     {
       "f": "tapeout",
       "gas": 218940
+    },
+    {
+      "f": "mint",
+      "gas": 86399
+    },
+    {
+      "f": "tapeout",
+      "gas": 204815
+    },
+    {
+      "f": "mint",
+      "gas": 86399
+    },
+    {
+      "f": "tapeout",
+      "gas": 210354
     }
   ]
 }

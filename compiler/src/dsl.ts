@@ -55,7 +55,7 @@ export function parseRule(input: unknown, path = '$', schema: Schema = BITS): Ru
   if (keys.length !== 1) throw new DslError(`${path}: object must have exactly one of all/any/not`);
   const [k] = keys;
   const v = (input as Record<string, unknown>)[k];
-  if (k === 'not') return { not: parseRule(v, `${path}.not`) };
+  if (k === 'not') return { not: parseRule(v, `${path}.not`, schema) };
   if (k === 'all' || k === 'any') {
     if (!Array.isArray(v) || v.length === 0) throw new DslError(`${path}.${k}: expected a non-empty array`);
     const items = v.map((x, i) => parseRule(x, `${path}.${k}[${i}]`, schema));

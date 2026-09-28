@@ -65,22 +65,27 @@ The tier is `(VOL_GUARD << 1) | DEPTH_GUARD`, which picks one of four fees fixed
 | `test_volatilityManipulationCost` | See attack 1. |
 | `Recon.fork.t.sol` | X Layer's PoolManager is byte-identical to Uniswap's canonical deployment apart from its self-address immutable. |
 
-## Gas (real receipts, local fork at X Layer block 71,784,310)
+## Gas (real receipts, local fork)
 
-`hook/script/gas-report.sh` writes [`hook/gas-report.json`](../hook/gas-report.json). The table shows steady-state
-swaps (average of swaps 2–4 in a pool).
+`hook/script/gas-report.sh` writes [`hook/gas-report.json`](../hook/gas-report.json). All four pools come from the same
+run: 6 alternating swaps each, averaging swaps 3–6, so the window slots are written and both route sinks already hold
+a balance.
 
 | Pool | Swap gas | vs plain |
 |---|---|---|
-| No hook, static 0.30% | 124,370 | — |
-| **FeeCircuitHook: table lookup** | **136,544** | **+12,174 (+9.8%)** |
-| Same hook, both circuits evaluated live every swap | 190,300 | +65,930 (+53%) |
+| No hook, static 0.30% | 119,612 | — |
+| **FeeCircuitHook: tier via table lookup** | **132,896** | **+13,284 (+11.1%)** |
+| Same hook, both tier circuits evaluated live every swap | 185,554 | +65,942 (+55.1%) |
+| **FeeRouteHook: tier + route (table lookups)** | **148,905** | **+29,293 (+24.5%)** |
 
-- **Facts included:** the +9.8% covers all the fact measurement: slot0, liquidity, and both window slots.
-- **First swap in a pool:** +53k once, when the two window slots are first written.
-- **Epoch rollover:** the first swap of each epoch rewrites the window slot. This was not measured separately; it is
-  bounded by one warm SSTORE (~3–5k).
-- **Hook deployment:** 3,421,444 gas, including the 64 evaluations and two netlist snapshots.
+- **Methodology:** an earlier run of the tier hook, averaging swaps 2–4 of 4, measured +12,174 (+9.8%). The difference is
+  the method, not the hook.
+- **What routing costs:** the route lookup is two table reads and a transient-storage handoff. Most of routing's extra
+  ~16k is the fee actually moving: one ERC-20 transfer (`take`) to the destination, plus the `afterSwap` callback and a
+  `Routed` event.
+- **A possible optimisation (not built):** accrue route fees as PoolManager ERC-6909 claims and pay them out in batches.
+  That would trade the per-swap transfer for a claims write plus a separate payout.
+- **Deploy gas:** tier-only 3,421,444; tier + route 5,240,135 (128 evaluations and four netlist snapshots).
 
 ## Attack 1: volatility manipulation (raising everyone's fee)
 
@@ -111,7 +116,7 @@ Windowing makes the attack costly and visible; it does not make it impossible fo
 
 **Measure:** depth = min(current in-range liquidity, the lowest liquidity observed during the current epoch, the lowest
 observed during the last epoch that had swaps). This takes a second storage slot (`curMin`), which we took. Its cost is
-inside the +12,174 above: one cold SLOAD per swap, and a write only when liquidity sets a new low.
+inside the tier hook's overhead above: one cold SLOAD per swap, and a write only when liquidity sets a new low.
 
 **Numbers** (`test_depthWindowBlocksJitLiquidity`; thin pool, L = 5e21 < `depthThin` 1e22, so the 0.30% tier applies):
 
@@ -126,6 +131,52 @@ inside the +12,174 above: one cold SLOAD per swap, and a write only when liquidi
 - **What that costs the attacker:** the liquidity is exposed to every swap and price move in that time, which makes it
   ordinary LP capital, not a flash trick.
 - **What it buys:** 0.25% off one swap.
+
+## FeeRoute: the circuit chooses where the fee goes
+
+`FeeRouteHook` extends `FeeCircuitHook`; one hook address carries both permission sets (beforeSwap + afterSwap +
+afterSwapReturnsDelta, so the address ends in `0x…00C4`).
+- **What it adds:** a fixed route fee (`routeBps`, 1% in the tests) on the unspecified side of every swap. Two more
+  taped-out circuits choose its **destination** from four addresses fixed at deploy.
+- **Why it matters:** the fee rate is the smaller claim. Fee destination is where rug risk lives: "nobody can redirect
+  your fees" is the stronger promise.
+
+| Circuit | Rule | Gates |
+|---|---|---|
+| `ROUTE_SPLIT` | `NOT IS_BUY` | 1 |
+| `ROUTE_GUARD` | `VOL_HIGH OR DEPTH_THIN` | 3 |
+
+- **Routes:** `route = (ROUTE_GUARD << 1) | ROUTE_SPLIT`.
+  - A calm **buy** pays route 0 (reserve).
+  - A calm **sell** pays route 1 (holder sink).
+  - When volatility is high or depth is thin, routes 2/3 **donate the fee to in-range LPs**, compensating them exactly
+    when they carry the most risk.
+- **Facts:** `IS_BUY` is the swap direction relative to the configured token, straight from the params. `VOL_HIGH` and
+  `DEPTH_THIN` are the same windowed facts the tier circuits use. Bits 3–4 are spare and always 0. There are no
+  attested facts and no arithmetic in the circuit.
+- **Table:** as with the tier, all 32 answers are computed once in the constructor by LatchEvaluator on frozen netlists
+  and stored as an immutable 64-bit table.
+
+**Accounting (v4 settles exactly, and this does too):**
+- `beforeSwap` computes the route from pre-swap facts and hands it to `afterSwap` through transient storage.
+- `afterSwap` takes `routeBps` of the unspecified amount, the same pattern as v4-core's `FeeTakingHook`, and returns it
+  as the hook's delta, so the swapper pays it.
+- In the same callback, the hook resolves its own delta: `take(currency, destination, fee)`, or `donate(key, …)` for the
+  LP routes. Net hook delta: zero.
+
+**Tests** (`hook/test/FeeRoute.fork.t.sol`):
+
+| Test | What it proves |
+|---|---|
+| `test_routeTableEqualsLiveTapeOutEvalForEveryFactWord` | Route table = TapeOut live `eval` = LatchEvaluator on the frozen netlists = DSL, for all 32 words. |
+| `test_buysToReserveSellsToHoldersReconcileExactly` | Exact-in buy: the reserve receives exactly 1% of the pool's output, the swapper the rest, and the PoolManager released exactly output + fee. Same for an exact-in sell to the holder sink. Exact-out buy: the output is delivered in full and 1% of the input is charged on top. |
+| `test_guardRoutesFeeToLpsAndReconciles` | On a thin pool, a sell routes to LPs. The sinks receive nothing, only the swapper's output leaves the PoolManager, and `feeGrowthGlobal0` rises by exactly `fee × 2^128 / liquidity`. |
+| **`test_maliciousTapeOutUpgradeCannotRedirectFees`** | Drives all 8 reachable route words through real swaps, then replaces the processor with a hostile CPU. It confirms the live path now misclassifies a calm buy, then shows every route and destination unchanged. |
+| `test_rejectsRouteFeeOutOfRange` | `routeBps` above 1,000 (10%) is refused at deploy. |
+
+**Where the pattern comes from:** direction-asymmetric fee routing is visible in the wild, for example a Solana token that
+routes buys to a reserve and sells to holder payouts. Our contribution is making the routing policy an immutable,
+publicly readable circuit rather than an admin setting.
 
 ## Why NexusHook cannot host Ignix tokens (checked 2026-09-28)
 
@@ -166,7 +217,7 @@ and *m* output bits:
 - store the 2^k·m-bit table (one storage word up to 2^k·m = 256);
 - each call is then a shift and a mask, not a netlist evaluation.
 
-Here that took per-swap overhead from +66k (live) to +12k (table), with facts measured the same way in both.
+Here that took per-swap overhead from +66k (live) to +13k (table), with facts measured the same way in both.
 
 **Trust is unchanged:**
 - the table is derived on-chain from the taped-out bytes;
@@ -184,7 +235,7 @@ immutable circuit logic viable where per-call evaluation is not.
 | Tape out VOL_GUARD + DEPTH_GUARD on the Nandout processor | 2 × (86k mint + ~227k tape-out) ≈ 626k | 0.0125 gas + 0.0159 fees = **0.028** |
 | └ of which transistors, 12 × 0.001 OKB | | 0.012, paid to the processor's creator (Nandout's own deployer), so it comes back |
 | └ TapeOut protocol fee 2 × 0.00066 + tape-out fee 2 × 0.0013 | | 0.0039 |
-| FeeCircuitHook deploy (hook-address mining is local and free) | 3.42M | **0.068** |
+| FeeCircuitHook deploy (hook-address mining is local and free) | 3.42M | **0.068** (FeeRouteHook: 5.24M = 0.105, plus two more tape-outs ≈ 0.02) |
 | One pool: initialize + add liquidity | ~0.31M | **0.006** (plus the liquidity itself, which is capital) |
 | **Lean total** (existing tokens and router) | | **≈ 0.10 OKB** (≈ 0.09 net of transistor proceeds) |
 | + two demo ERC-20s, a swap router, ~10 demo swaps | ~4.8M | + ≈ 0.10 → **≈ 0.20 OKB** |

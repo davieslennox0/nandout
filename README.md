@@ -3,7 +3,9 @@
 > A programmable on-chain decision layer on X Layer. · [nandout.xyz](https://nandout.xyz)
 
 Nandout turns rules into **taped-out TapeOut circuits**: NAND netlists, immutable once registered. Consumers measure
-the world in Solidity, pack the facts into bits, and act on the circuit's verdict. Everything below shares one stack:
+the world in Solidity, pack the facts into bits, and act on the circuit's verdict. The processor's circuits govern:
+(a) whether capital should enter a token (Gate), (b) what a swap costs (fee tier), and (c) where that fee goes
+(FeeRoute). Everything below shares one stack:
 
 - **one processor:** "Nandout", TapeOut processor 230 at `0x8A60…a58E`;
 - **one compiler:** `compiler/`, rule DSL → NAND netlist, verified exhaustively over every input;
@@ -13,7 +15,8 @@ the world in Solidity, pack the facts into bits, and act on the circuit's verdic
 | Consumer | What the circuit decides | State |
 |---|---|---|
 | **Gate** (`LatchGate`) | Whether an Ignix launch is *unlatched* (passes a filter). Vaults, agents and traders call `check` / `checkMany`: free, view-only. | **Live on mainnet.** The attestor scores every Ignix launch (5,144 registered on 2026-09-28) every 10 minutes. |
-| **NexusHook** (`hook/`, `FeeCircuitHook`) | The LP fee tier of a Uniswap v4 pool, from 5 facts about volatility and depth. The circuit's full output is precomputed at registration and looked up per swap (+9.8% gas). | **Fork-proven, not deployed.** Tested against the real X Layer PoolManager, processor and evaluator. [`docs/HOOK.md`](docs/HOOK.md) |
+| **NexusHook: fee tier** (`hook/`, `FeeCircuitHook`) | What a swap costs: the LP fee tier of a Uniswap v4 pool, from 5 facts about volatility and depth. The circuits' full output is precomputed at registration and looked up per swap (+11% gas). | **Fork-proven, not deployed.** Tested against the real X Layer PoolManager, processor and evaluator. [`docs/HOOK.md`](docs/HOOK.md) |
+| **NexusHook: FeeRoute** (`FeeRouteHook`) | Where that fee goes: calm buys to a reserve, calm sells to a holder sink, and LPs whenever volatility is high or depth is thin. Destinations and mapping are immutable. | **Fork-proven, not deployed.** A malicious TapeOut upgrade cannot redirect fees (tested). +24.5% gas, mostly the per-swap transfer. |
 | **Lock** (`LatchLock`) | When a creator's locked tranche may be released. Keeping ≥ 5% of supply locked sets the `LATCH_LOCKED` bit that Gate filters read. | **Deployed, narrow in practice** (below). |
 
 **Lock is narrow, for measured reasons:**
