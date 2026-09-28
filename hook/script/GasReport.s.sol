@@ -70,7 +70,7 @@ contract GasReport is Script {
         t0.approve(address(liqR), type(uint256).max); t1.approve(address(liqR), type(uint256).max);
 
         uint24[4] memory fees = [uint24(500), 3000, 6000, 10000];
-        FeeCircuitHook.Thresholds memory t = FeeCircuitHook.Thresholds(20_000, 5_000, 1e22, 1e21);
+        FeeCircuitHook.Thresholds memory t = FeeCircuitHook.Thresholds(20_000, 5_000, 5_000, 2_500);
         bytes memory args = abi.encode(PM, EVALUATOR, TAPEOUT, v, d, fees, t, uint32(60));
         address table = _deploy(abi.encodePacked(type(FeeCircuitHook).creationCode, args), 1 << 7);
         address live = _deploy(abi.encodePacked(type(LiveEvalHook).creationCode, args), 1 << 7);

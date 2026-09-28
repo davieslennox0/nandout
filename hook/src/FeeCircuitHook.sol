@@ -47,15 +47,18 @@ contract FeeCircuitHook is IHooks {
         bytes32 netlistHash; // keccak256 of the netlist the deployer compiled and verified
     }
 
-    /// @notice Fact thresholds. Volatility is an EWMA of per-epoch tick displacement, in hundredths of a tick.
+    /// @notice Fact thresholds. All scale-free:
+    ///         - volatility is an EWMA of per-epoch tick displacement in hundredths of a tick (ticks are log-price, so the
+    ///           same threshold means the same % move on every pool);
+    ///         - depth thresholds are basis points of the pool's OWN liquidity baseline (see Depth), not absolute units.
     struct Thresholds {
         uint32 volHigh;
         uint32 volElevated;
-        uint128 depthThin;
-        uint128 depthCritical;
+        uint16 depthThinBps; // DEPTH_THIN when windowed depth < this share of the baseline
+        uint16 depthCriticalBps; // DEPTH_CRITICAL when windowed depth < this share of the baseline
     }
 
-    /// @dev Slot A: only written on the first swap of an epoch. Slot B: only written when liquidity sets a new low.
+    /// @dev Slot A: only written on the first swap of an epoch. Slot B (Depth): written on rollover or a new low.
     struct Window {
         uint32 epoch;
         int24 anchorTick; // tick before the first swap of `epoch`
@@ -74,12 +77,24 @@ contract FeeCircuitHook is IHooks {
     uint24 public immutable fee3;
     uint32 public immutable volHigh;
     uint32 public immutable volElevated;
-    uint128 public immutable depthThin;
-    uint128 public immutable depthCritical;
+    uint16 public immutable depthThinBps;
+    uint16 public immutable depthCriticalBps;
+    /// Baseline moves 1/2^BASELINE_SHIFT of the way to each new epoch floor (1/16: ~11-epoch half-life).
+    uint256 internal constant BASELINE_SHIFT = 4;
     uint32 public immutable epochBlocks;
 
     mapping(PoolId => Window) public window;
-    mapping(PoolId => uint128) public curMin; // lowest in-range liquidity seen so far in the current epoch
+    /// @notice Per-pool depth state, one slot.
+    ///         curMin: lowest in-range liquidity observed so far in the current epoch.
+    ///         baseline: the pool's own normal depth. Seeded from the floor of the pool's first full epoch (NOT from a single
+    ///         observation, which one JIT deposit could inflate), then an EWMA of each epoch's floor. afterInitialize is not
+    ///         used: it runs inside initialize, before any liquidity can exist, so it would always read zero.
+    struct Depth {
+        uint128 curMin;
+        uint128 baseline;
+    }
+
+    mapping(PoolId => Depth) public depthState;
 
     event Registered(address volNetlist, address depthNetlist, uint64 table, uint24[4] fees);
 
@@ -104,7 +119,9 @@ contract FeeCircuitHook is IHooks {
     ) {
         Hooks.validateHookPermissions(IHooks(address(this)), getHookPermissions());
         for (uint256 i = 0; i < 4; i++) if (fees[i] > LPFeeLibrary.MAX_LP_FEE) revert FeeTooLarge(fees[i]);
-        if (epochBlocks_ == 0 || t.volHigh < t.volElevated || t.depthCritical > t.depthThin) revert BadConfig();
+        if (
+            epochBlocks_ == 0 || t.volHigh < t.volElevated || t.depthCriticalBps > t.depthThinBps || t.depthThinBps > 10_000
+        ) revert BadConfig();
 
         poolManager = poolManager_;
         evaluator = evaluator_;
@@ -122,7 +139,7 @@ contract FeeCircuitHook is IHooks {
         }
         table = tbl;
         (fee0, fee1, fee2, fee3) = (fees[0], fees[1], fees[2], fees[3]);
-        (volHigh, volElevated, depthThin, depthCritical) = (t.volHigh, t.volElevated, t.depthThin, t.depthCritical);
+        (volHigh, volElevated, depthThinBps, depthCriticalBps) = (t.volHigh, t.volElevated, t.depthThinBps, t.depthCriticalBps);
         epochBlocks = epochBlocks_;
         emit Registered(vp, dp, tbl, fees);
     }
@@ -162,9 +179,9 @@ contract FeeCircuitHook is IHooks {
         uint128 liq = poolManager.getLiquidity(id);
         Window memory w = window[id];
         uint32 e = uint32(block.number / epochBlocks);
-        uint128 cm = curMin[id];
-        if (e != w.epoch) (w, cm) = _rolled(w, cm, e, tick, liq);
-        return _pack(w, cm, liq);
+        Depth memory d = depthState[id];
+        if (e != w.epoch) (w, d) = _rolled(w, d, e, tick, liq);
+        return _pack(w, d, liq);
     }
 
     // ---- hook ---------------------------------------------------------------------------------------------------
@@ -188,16 +205,16 @@ contract FeeCircuitHook is IHooks {
         uint128 liq = poolManager.getLiquidity(id);
         uint32 e = uint32(block.number / epochBlocks);
         Window memory w = window[id];
-        uint128 cm = curMin[id];
+        Depth memory d = depthState[id];
         if (e != w.epoch) {
-            (w, cm) = _rolled(w, cm, e, tick, liq);
+            (w, d) = _rolled(w, d, e, tick, liq);
             window[id] = w;
-            curMin[id] = cm;
-        } else if (liq < cm) {
-            cm = liq;
-            curMin[id] = cm;
+            depthState[id] = d;
+        } else if (liq < d.curMin) {
+            d.curMin = liq;
+            depthState[id] = d;
         }
-        return _pack(w, cm, liq);
+        return _pack(w, d, liq);
     }
 
     /// @dev Extension point: a delta charged on the swap before it executes (FeeRouteHook's input-side hook fee).
@@ -217,31 +234,41 @@ contract FeeCircuitHook is IHooks {
     ///      displacement must survive an epoch boundary to register. Depth keeps the lowest liquidity observed during
     ///      the last epoch with swaps, so borrowed (JIT) liquidity only counts if it was present at every observation
     ///      of a whole epoch.
-    function _rolled(Window memory w, uint128 cm, uint32 e, int24 tick, uint128 liq)
+    function _rolled(Window memory w, Depth memory d, uint32 e, int24 tick, uint128 liq)
         private
         pure
-        returns (Window memory, uint128)
+        returns (Window memory, Depth memory)
     {
         if (w.epoch == 0 && w.anchorTick == 0 && w.vol == 0 && w.prevMin == 0) {
-            // First swap ever: no history. Floor depth at what is here now; volatility starts calm.
-            return (Window(e, tick, 0, liq), liq);
+            // First swap ever: no history. Volatility starts calm; no baseline until a full epoch has been observed.
+            return (Window(e, tick, 0, liq), Depth(liq, 0));
         }
+        // Baseline: seeded from the first completed epoch's floor, then moved 1/16 of the way to each new floor.
+        uint128 floor_ = d.curMin;
+        uint128 base = d.baseline;
+        if (base == 0) base = floor_;
+        else if (floor_ > base) base += (floor_ - base) >> BASELINE_SHIFT;
+        else base -= (base - floor_) >> BASELINE_SHIFT;
         uint256 move = tick > w.anchorTick ? uint256(int256(tick) - w.anchorTick) : uint256(int256(w.anchorTick) - tick);
         uint256 vol = (uint256(w.vol) * 3 + move * 100) / 4;
         uint256 skipped = e > w.epoch + 1 ? e - w.epoch - 1 : 0; // idle epochs decay the estimate
         for (uint256 i = 0; i < skipped && i < 16 && vol > 0; i++) vol = (vol * 3) / 4;
         if (vol > type(uint32).max) vol = type(uint32).max;
-        return (Window(e, tick, uint32(vol), cm), liq);
+        return (Window(e, tick, uint32(vol), floor_), Depth(liq, base));
     }
 
-    function _pack(Window memory w, uint128 cm, uint128 liq) private view returns (uint8 f) {
-        uint128 depth = liq;
+    function _pack(Window memory w, Depth memory d, uint128 liq) private view returns (uint8 f) {
+        uint256 depth = liq;
         if (w.prevMin < depth) depth = w.prevMin;
-        if (cm < depth) depth = cm;
+        if (d.curMin < depth) depth = d.curMin;
         if (w.vol >= volHigh) f |= VOL_HIGH;
         if (w.vol >= volElevated) f |= VOL_ELEVATED;
-        if (depth < depthThin) f |= DEPTH_THIN;
-        if (depth < depthCritical) f |= DEPTH_CRITICAL;
+        // Depth relative to the pool's own baseline; until a baseline exists (first epoch) no depth fact is asserted.
+        if (d.baseline > 0) {
+            uint256 b = d.baseline;
+            if (depth * 10_000 < b * depthThinBps) f |= DEPTH_THIN;
+            if (depth * 10_000 < b * depthCriticalBps) f |= DEPTH_CRITICAL;
+        }
         if (liq < w.prevMin / 2) f |= DEPTH_DRAIN;
     }
 

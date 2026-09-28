@@ -7,7 +7,7 @@ import {PoolKey} from "v4-core/src/types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
 import {Currency} from "v4-core/src/types/Currency.sol";
 import {BalanceDelta} from "v4-core/src/types/BalanceDelta.sol";
-import {SwapParams} from "v4-core/src/types/PoolOperation.sol";
+import {ModifyLiquidityParams, SwapParams} from "v4-core/src/types/PoolOperation.sol";
 import {Hooks} from "v4-core/src/libraries/Hooks.sol";
 import {StateLibrary} from "v4-core/src/libraries/StateLibrary.sol";
 import {FullMath} from "v4-core/src/libraries/FullMath.sol";
@@ -110,12 +110,19 @@ contract FeeRouteForkTest is HookForkBase {
 
     function test_guardRoutesFeeToLpsAndReconciles() public {
         FeeRouteHook hook = _deployRoute(type(FeeRouteHook).creationCode);
-        PoolKey memory key = _pool(address(hook), 5e21); // thin -> DEPTH_THIN -> ROUTE_GUARD on
+        PoolKey memory key = _pool(address(hook), 1e23);
+        // Establish the pool's own depth baseline, then pull 80%: DEPTH_THIN (relative) -> ROUTE_GUARD on.
+        swapRouter.swap(key, SwapParams(true, -1e15, TickMath.MIN_SQRT_PRICE + 1), PoolSwapTest.TestSettings(false, false), "");
+        vm.roll(vm.getBlockNumber() + EPOCH);
+        swapRouter.swap(key, SwapParams(false, -1e15, TickMath.MAX_SQRT_PRICE - 1), PoolSwapTest.TestSettings(false, false), "");
+        vm.roll(vm.getBlockNumber() + EPOCH);
+        liqRouter.modifyLiquidity(key, ModifyLiquidityParams(-6000, 6000, -8e22, 0), "");
         PoolId id = key.toId();
         (uint256 fg0Before,) = PM.getFeeGrowthGlobals(id);
         uint128 liq = PM.getLiquidity(id);
         uint256 pm0 = t0.balanceOf(address(PM));
         uint256 me0 = t0.balanceOf(address(this));
+        uint256 sinksBefore = t0.balanceOf(reserve) + t0.balanceOf(holders) + t1.balanceOf(reserve) + t1.balanceOf(holders);
 
         vm.recordLogs();
         // Sell: t1 in (the LP fee accrues in t1), fee on the t0 output -> donated in t0, so fee growth 0 is the donation.
@@ -126,7 +133,7 @@ contract FeeRouteForkTest is HookForkBase {
 
         assertEq(route, 3, "guarded sell -> route 3");
         assertEq(dest, address(0), "route 3 = in-range LPs");
-        assertEq(t0.balanceOf(reserve) + t0.balanceOf(holders) + t1.balanceOf(reserve) + t1.balanceOf(holders), 0);
+        assertEq(t0.balanceOf(reserve) + t0.balanceOf(holders) + t1.balanceOf(reserve) + t1.balanceOf(holders), sinksBefore, "sinks got nothing from the guarded swap");
         assertEq(pm0 - t0.balanceOf(address(PM)), got, "only the swapper's output left the PoolManager; the fee stayed with LPs");
         assertEq(fee, (got + fee) * ROUTE_BPS / 10_000);
         assertEq(fg0After - fg0Before, FullMath.mulDiv(fee, FixedPoint128.Q128, liq), "fee growth rose by exactly the donated fee");

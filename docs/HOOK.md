@@ -24,8 +24,8 @@ the real PoolManager, the real Nandout processor and the real LatchEvaluator. Ph
 |---|---|---|
 | 0 | `VOL_HIGH` | windowed volatility ≥ `volHigh` |
 | 1 | `VOL_ELEVATED` | windowed volatility ≥ `volElevated` |
-| 2 | `DEPTH_THIN` | windowed depth < `depthThin` |
-| 3 | `DEPTH_CRITICAL` | windowed depth < `depthCritical` |
+| 2 | `DEPTH_THIN` | windowed depth < 50% of the pool's **own** liquidity baseline |
+| 3 | `DEPTH_CRITICAL` | windowed depth < 25% of that baseline |
 | 4 | `DEPTH_DRAIN` | current liquidity < half the previous epoch's floor (LPs leaving) |
 
 | Circuit (6 gates each) | Rule | Tier bit |
@@ -74,10 +74,10 @@ a balance.
 | Pool | Swap gas | vs plain |
 |---|---|---|
 | No hook, static 0.30% | 119,612 | — |
-| **FeeCircuitHook: tier via table lookup** | **132,896** | **+13,284 (+11.1%)** |
-| Same hook, both tier circuits evaluated live every swap | 185,554 | +65,942 (+55.1%) |
+| **FeeCircuitHook: tier via table lookup** | **131,922** | **+12,310 (+10.3%)** |
+| Same hook, both tier circuits evaluated live every swap | 185,690 | +66,078 (+55.2%) |
 | FeeRouteHook: tier + route, no hook fee (earlier run) | 148,905 | +29,293 (+24.5%) |
-| **FeeRouteHook, final deploy config** (tier + 5 bps route to LPs + 1000-pip hook fee to the Nandout deploy wallet) | **164,173** | **+44,561 (+37.3%)** |
+| **FeeRouteHook, final deploy config** (tier + 5 bps route to LPs + 1000-pip hook fee to the Nandout deploy wallet) | **164,343** | **+44,731 (+37.4%)** |
 
 - **Methodology:** an earlier run of the tier hook, averaging swaps 2–4 of 4, measured +12,174 (+9.8%). The difference is
   the method, not the hook.
@@ -113,25 +113,50 @@ Volatility is an EWMA of per-epoch displacement, `vol = (3·vol + 100·|Δtick|)
 
 Windowing makes the attack costly and visible; it does not make it impossible for a large LP.
 
+## Depth is scale-free: judged against each pool's own baseline
+
+A generic hook cannot use absolute depth thresholds. A fixed number of liquidity units is "thin" for a large pool and
+"deep" for a small one, so most pools would be pinned to a tier forever, and nobody could fix it. Instead:
+
+- **Baseline:** each pool keeps a baseline of its own normal depth. It is seeded from the lowest liquidity observed
+  across the pool's **first full epoch**, then moves 1/16 of the way to each new epoch's floor, a slow average with an
+  ~11-epoch half-life.
+- **Facts:** `DEPTH_THIN` means windowed depth is below 50% of the baseline; `DEPTH_CRITICAL`, below 25%. No depth fact
+  is asserted before a baseline exists.
+- **No afterInitialize:** it runs inside `initialize`, before any liquidity can be added, so it would always record zero.
+  The baseline comes from observed liquidity instead, and no extra permission bit is needed.
+- **Cost:** the baseline shares the per-pool depth slot with `curMin`, so no extra storage slot and no extra per-swap
+  SLOAD. It is written only at an epoch rollover.
+- **Proof** (`test_depthIsScaleFree`): the same 9-step scenario (establish baseline, pull 80%, restore) on pools at
+  liquidity 1e18 and 1e27 charges **identical** fees at every step.
+
 ## Attack 2: depth gaming (JIT liquidity for a lower tier)
 
 **Measure:** depth = min(current in-range liquidity, the lowest liquidity observed during the current epoch, the lowest
-observed during the last epoch that had swaps). This takes a second storage slot (`curMin`), which we took. Its cost is
-inside the tier hook's overhead above: one cold SLOAD per swap, and a write only when liquidity sets a new low.
+observed during the last epoch that had swaps).
 
-**Numbers** (`test_depthWindowBlocksJitLiquidity`; thin pool, L = 5e21 < `depthThin` 1e22, so the 0.30% tier applies):
+**Numbers** (`test_depthWindowBlocksJitLiquidity`): a pool whose LPs pulled 80% (depth 20% of its baseline, so the 0.30%
+tier applies).
 
 | Step | Fee charged |
 |---|---|
-| Attacker adds **+1e24 liquidity (200×)** in the same block as its own swap | **0.30%** (a naive current-liquidity check would have given 0.05%) |
+| Attacker adds **+1e25 liquidity (500× the remaining depth)** in the same block as its own swap | **0.30%** (a naive current-liquidity check would have given 0.05%) |
 | Keeps it until the next epoch | 0.30% (the previous epoch's floor was thin) |
 | Keeps it through a **whole epoch** in which every observation sees it | 0.05% |
 
-- **How long it had to stay:** 94 blocks (~94 s) in the test. The minimum is always one full epoch (60 blocks) plus the
-  rest of the current one.
+- **How long it had to stay:** 116 blocks (116 s at X Layer's measured 1.0 s/block, averaged over the last 1,000,000
+  blocks). The minimum is always one full 60-block epoch plus the rest of the current one.
 - **What that costs the attacker:** the liquidity is exposed to every swap and price move in that time, which makes it
   ordinary LP capital, not a flash trick.
 - **What it buys:** 0.25% off one swap.
+
+**Residual, at pool birth** (`test_inflatedBaselineAtBirthDecays`):
+- **The attack:** add 1,000× liquidity, make the *only* swap of the pool's first epoch, then withdraw. That inflates the
+  baseline seed.
+- **The effect:** the pool reads thin, and pays the 0.30% tier, for **108 epochs (~1.8 hours)** until the baseline decays
+  back. After that it recovers by itself, with no admin involved.
+- **Why it's contained:** it can only happen in a pool's first epoch, and only if nobody else trades then. A baseline
+  frozen at a single first observation, by contrast, would pin the pool permanently.
 
 ## FeeRoute: the circuit chooses where the fee goes
 
@@ -257,8 +282,8 @@ impersonated, so no key is used. The table shows gas units from the fork receipt
 | Tape out DEPTH_GUARD | 223,740 | 0.0000045 | 0.0013 |
 | Tape out ROUTE_SPLIT | 209,615 | 0.0000042 | 0.0013 |
 | Tape out ROUTE_GUARD | 210,354 | 0.0000042 | 0.0013 |
-| Deploy FeeRouteHook (CREATE2, mined address) | 5,460,227 | 0.0001092 | 0 |
-| **Total** | **6,414,075** | **0.000128** | **0.02186** |
+| Deploy FeeRouteHook (CREATE2, mined address) | 5,549,251 | 0.0001110 | 0 |
+| **Total** | **6,503,099** | **0.000130** | **0.02186** |
 
 - **Total: ≈ 0.0220 OKB.**
 - **Net ≈ 0.0060 OKB:** the 0.016 OKB transistor payment is owed to the processor's creator, which is the deploy wallet

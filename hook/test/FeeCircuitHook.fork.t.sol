@@ -78,8 +78,8 @@ abstract contract HookForkBase is Test {
     FeeCircuitHook.Thresholds internal T = FeeCircuitHook.Thresholds({
         volHigh: 20_000, // EWMA units: one epoch displacement of m ticks adds 25*m -> 800 ticks (~8.3%) in one epoch
         volElevated: 5_000, // 200 ticks (~2%) in one epoch
-        depthThin: 1e22,
-        depthCritical: 1e21
+        depthThinBps: 5_000, // DEPTH_THIN below 50% of the pool's own baseline
+        depthCriticalBps: 2_500 // DEPTH_CRITICAL below 25% of it
     });
 
     FeeCircuitHook.Guard internal volGuard;
@@ -293,25 +293,83 @@ contract FeeCircuitHookForkTest is HookForkBase {
     /// An LP adds liquidity in the same block as its own swap to flip DEPTH_THIN off and take the lower tier.
     function test_depthWindowBlocksJitLiquidity() public {
         FeeCircuitHook hook = _deployHook();
-        PoolKey memory key = _pool(address(hook), 5e21); // thin: 5e21 < depthThin 1e22
+        PoolKey memory key = _pool(address(hook), 1e23);
         _swapFee(key, true, 1e18); // first observation
         vm.roll(vm.getBlockNumber() + EPOCH);
-        assertEq(_swapFee(key, false, 1e18), FEES[1], "thin pool pays the thin tier");
+        assertEq(_swapFee(key, false, 1e18), FEES[0], "baseline seeded from the first full epoch: calm and deep");
+        vm.roll(vm.getBlockNumber() + EPOCH);
+        assertEq(_swapFee(key, true, 1e18), FEES[0]);
 
-        // JIT: +1e24 liquidity (200x) right before a swap, same block.
+        // LPs pull 80%: depth is 20% of the pool's own baseline -> thin (and critical, and draining).
+        liqRouter.modifyLiquidity(key, ModifyLiquidityParams(-6000, 6000, -8e22, 0), "");
+        assertEq(_swapFee(key, false, 1e18), FEES[1], "thin relative to its own baseline");
+
+        // JIT: +1e25 (500x the remaining depth) right before a swap, same block.
         uint256 jitBlock = vm.getBlockNumber();
-        liqRouter.modifyLiquidity(key, ModifyLiquidityParams(-6000, 6000, 1e24, bytes32("jit")), "");
-        assertGt(PM.getLiquidity(_id(key)), T.depthThin, "a naive current-liquidity check would say deep");
+        liqRouter.modifyLiquidity(key, ModifyLiquidityParams(-6000, 6000, 1e25, bytes32("jit")), "");
         assertEq(_swapFee(key, true, 1e18), FEES[1], "windowed depth still thin: JIT gets no discount");
 
-        // Holding the liquidity through the rest of this epoch is not enough either: the epoch had a thin observation.
+        // Holding it through the rest of this epoch is not enough: the epoch had a thin observation.
         vm.roll((vm.getBlockNumber() / EPOCH + 1) * EPOCH);
         assertEq(_swapFee(key, false, 1e18), FEES[1], "next epoch: previous epoch's floor was thin");
 
         // Only after a whole epoch in which every observation saw the extra liquidity does the tier drop.
         vm.roll(vm.getBlockNumber() + EPOCH);
         assertEq(_swapFee(key, true, 1e18), FEES[0], "deep after a full epoch of real depth");
-        emit log_named_uint("blocks the JIT liquidity had to stay in the pool (1 block = ~1 s)", vm.getBlockNumber() - jitBlock);
+        emit log_named_uint("blocks the JIT liquidity had to stay in the pool (1 block = 1.0 s on X Layer)", vm.getBlockNumber() - jitBlock);
+    }
+
+    /// The same scenario on a pool 1e9 times larger charges exactly the same fees: depth is judged against each pool's
+    /// own baseline, so no pool is pinned to a tier by its size.
+    function test_depthIsScaleFree() public {
+        FeeCircuitHook hook = _deployHook();
+        uint24[9] memory small = _depthScenario(hook, 1e18, 60);
+        uint24[9] memory large = _depthScenario(hook, 1e27, 120); // a second pool on the same hook (distinct PoolKey)
+        uint24[9] memory want = [FEES[0], FEES[0], FEES[0], FEES[1], FEES[1], FEES[1], FEES[1], FEES[1], FEES[0]];
+        for (uint256 i = 0; i < 9; i++) {
+            assertEq(small[i], want[i], "L = 1e18");
+            assertEq(large[i], want[i], "L = 1e27");
+        }
+    }
+
+    function _depthScenario(FeeCircuitHook hook, uint128 L, int24 spacing) internal returns (uint24[9] memory fees) {
+        PoolKey memory key = PoolKey(Currency.wrap(address(t0)), Currency.wrap(address(t1)), LPFeeLibrary.DYNAMIC_FEE_FLAG, spacing, IHooks(address(hook)));
+        PM.initialize(key, TickMath.getSqrtPriceAtTick(0));
+        liqRouter.modifyLiquidity(key, ModifyLiquidityParams(-6000, 6000, int256(uint256(L)), 0), "");
+        uint256 amt = L / 1e5;
+        fees[0] = _swapFee(key, true, amt); // first observation (no baseline yet)
+        vm.roll(vm.getBlockNumber() + EPOCH);
+        fees[1] = _swapFee(key, false, amt); // baseline seeded
+        vm.roll(vm.getBlockNumber() + EPOCH);
+        fees[2] = _swapFee(key, true, amt);
+        liqRouter.modifyLiquidity(key, ModifyLiquidityParams(-6000, 6000, -int256(uint256(L) * 8 / 10), 0), "");
+        fees[3] = _swapFee(key, false, amt); // 20% of baseline
+        vm.roll(vm.getBlockNumber() + EPOCH);
+        fees[4] = _swapFee(key, true, amt);
+        liqRouter.modifyLiquidity(key, ModifyLiquidityParams(-6000, 6000, int256(uint256(L) * 8 / 10), 0), "");
+        fees[5] = _swapFee(key, false, amt); // restored, but this epoch saw the low
+        vm.roll(vm.getBlockNumber() + EPOCH);
+        fees[6] = _swapFee(key, true, amt); // previous epoch's floor was low
+        fees[7] = _swapFee(key, false, amt);
+        vm.roll(vm.getBlockNumber() + EPOCH);
+        fees[8] = _swapFee(key, true, amt); // a full epoch at full depth
+    }
+
+    /// Worst case at pool birth: an attacker adds 1000x liquidity, makes the only swap of the first epoch, and withdraws,
+    /// so the first epoch's floor (the baseline seed) is inflated. The pool reads thin until the baseline decays back.
+    function test_inflatedBaselineAtBirthDecays() public {
+        FeeCircuitHook hook = _deployHook();
+        PoolKey memory key = _pool(address(hook), 1e22);
+        liqRouter.modifyLiquidity(key, ModifyLiquidityParams(-6000, 6000, 1e25, bytes32("jit")), "");
+        _swapFee(key, true, 1e18);
+        liqRouter.modifyLiquidity(key, ModifyLiquidityParams(-6000, 6000, -1e25, bytes32("jit")), "");
+        uint256 epochs;
+        for (; epochs < 300; epochs++) {
+            vm.roll(vm.getBlockNumber() + EPOCH);
+            if (_swapFee(key, epochs % 2 == 0, 1e18) == FEES[0]) break;
+        }
+        assertLt(epochs, 300, "the baseline decays back");
+        emit log_named_uint("epochs (60 s each) a 1000x birth inflation keeps the pool in the thin tier", epochs);
     }
 
     // ---- 4. volatility manipulation -------------------------------------------------------------------------------

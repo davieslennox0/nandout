@@ -51,7 +51,7 @@ contract DeployFeeRoute is Script {
         FeeCircuitHook.Guard memory guard = _tapeout(cpu, rte, 1);
 
         uint24[4] memory fees = [uint24(500), 3000, 6000, 10000]; // 0.05 / 0.30 / 0.60 / 1.00 %
-        FeeCircuitHook.Thresholds memory t = FeeCircuitHook.Thresholds(20_000, 5_000, 1e22, 1e21);
+        FeeCircuitHook.Thresholds memory t = FeeCircuitHook.Thresholds(20_000, 5_000, 5_000, 2_500);
         FeeRouteHook.RouteConfig memory r = FeeRouteHook.RouteConfig(
             split, guard, [address(0), address(0), address(0), address(0)], 5, Currency.wrap(address(0)), 1000, RECIPIENT
         );
