@@ -61,6 +61,9 @@ other projects can build on without reverse-engineering it.
 - **Pre-graduation Ignix tokens are non-transferable.** Every `transfer` / `transferFrom` reverts with `CurveOnly()`
   (selector `0x9dabc49b`), even 1 token to a plain wallet, until the token graduates to a pool. Found when the first real
   lock attempt reverted in simulation; nandout.xyz/lock now checks this before offering an approve.
+- **Ignix tokens tax the Uniswap v4 PoolManager.** A graduated launch (IGNIXFROG) takes 3% on transfers to and from its
+  v2 pair and the v4 PoolManager, but not on ordinary transfers. v4 settles exact amounts, so no v4 pool (hooked or not)
+  can hold an Ignix token: `CurrencyNotSettled()` on a fork (`hook/test/IgnixFrogPool.fork.t.sol`).
 - **Uniswap v4 on X Layer is canonical v4-core.** PoolManager `0x360E…FB32` is byte-identical to Ethereum's
   `0x0000…8A90` except its 20-byte self-address immutable (checked in CI).
 - **TapeKit issue #6 is a false negative.** It reports "no SiteRegistry / DomainBinding code on X Layer" because it checked

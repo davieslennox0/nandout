@@ -127,6 +127,20 @@ inside the +12,174 above: one cold SLOAD per swap, and a write only when liquidi
   ordinary LP capital, not a flash trick.
 - **What it buys:** 0.25% off one swap.
 
+## Why NexusHook cannot host Ignix tokens (checked 2026-09-28)
+
+We planned the first live pool on IGNIXFROG, a graduated Ignix launch paired with wQQQx. It is impossible, for a reason
+unrelated to the hook:
+
+- **Ignix taxes the V4 PoolManager.** IGNIXFROG takes **3% on transfers to and from its v2 pair and to and from the V4
+  PoolManager** (`0x360E…FB32`). Transfers to ordinary addresses, and to LatchLock, are untaxed.
+- **V4 cannot absorb a tax.** It settles exact amounts, so a pool holding a token that loses 3% in transit can never
+  settle. A plain hookless pool fails with `CurrencyNotSettled()` on the first add-liquidity.
+- **Pinned in CI:** `hook/test/IgnixFrogPool.fork.t.sol` asserts both the tax figures and the failure.
+
+Ignix evidently treats the PoolManager as a taxed venue, which also stops anyone from routing around the creator's tax
+through a V4 pool. A NexusHook pool needs untaxed tokens, such as wQQQx, USDT0 or xETH.
+
 ## Deferred: MILESTONE (agent revenue → lower tier)
 
 A `MILESTONE` fact ("the pool token's agent has revenue ≥ threshold") needs an attestor. Candidates are nandout's
