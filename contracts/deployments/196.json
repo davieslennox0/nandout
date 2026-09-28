@@ -9,7 +9,8 @@
     "STICKY_SAFETY": 6,
     "STRICT": 3,
     "UNLOCK_T1": 4,
-    "UNLOCK_T2": 5
+    "UNLOCK_T2": 5,
+    "MARKET_SAFE": 7
   },
   "gate": "0x649373f612d278634Ba8656aF53bCA7D8dc0f940",
   "lock": "0xBe9ae981ec742B9053AD802a1D6A2B96E58b67f1",
