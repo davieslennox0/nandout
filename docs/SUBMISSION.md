@@ -35,7 +35,7 @@ logic viable on hot paths where per-call evaluation is not.
 |---|---|
 | Processor (TapeOut, X Layer) | `0x8A60B4A4BCf4066F5E5F9A406fE09c5e4f52a58E`: "Nandout", processor number 230, created through TapeOut's factory |
 | Transistor supply / cap / price | 500,000 / 500,000 (supply is the cap) / 0.001 OKB per transistor, fixed at deploy (see `docs/ECONOMICS.md`) |
-| Circuits taped out | 10 on processor 230: 6 starters (BASIC_SAFETY, REVENUE_AGENTS, STRICT, UNLOCK_T1, UNLOCK_T2, STICKY_SAFETY) and NexusHook's VOL_GUARD #7, DEPTH_GUARD #8, ROUTE_SPLIT #9, ROUTE_GUARD #10 |
+| Circuits taped out | 11 on processor 230: 6 starters (BASIC_SAFETY, REVENUE_AGENTS, STRICT, UNLOCK_T1, UNLOCK_T2, STICKY_SAFETY), NexusHook's VOL_GUARD #7, DEPTH_GUARD #8, ROUTE_SPLIT #9, ROUTE_GUARD #10, and MARKET_SAFE #11 (Gate filter #7, registered 2026-09-28, tx `0x84c66a30117c5c3fb360051cf12b2a9069978d2cd70201bb9394a6d5fd80382e`) |
 | Deploy wallet | `0x934d315C0a9C0866D393B722C1805F2B6b20b816` |
 | Live app | https://nandout.xyz |
 | On-chain site (DeWEB) | https://1-2-230.tapekit.org (`1.2.230.tape`) |

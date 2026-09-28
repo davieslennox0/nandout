@@ -18,4 +18,7 @@ export const STARTERS: Record<string, unknown> = {
       reset: { any: [{ not: 'DEV_NO_SELL_7D' }, 'LP_PULLED'] },
     },
   },
+  // Middle strictness (added 2026-09-28): a live market (locked LP) or real holders, no dev outflow, LP never pulled.
+  // Passes ~38 of 5,202 launches at the 2026-09-28 cycle, vs BASIC_SAFETY 17 and STRICT 0.
+  MARKET_SAFE: { all: [{ any: ['LP_LOCKED', 'HOLDERS_GE_100'] }, 'DEV_NO_SELL_7D', { not: 'LP_PULLED' }] },
 };
