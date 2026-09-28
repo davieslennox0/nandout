@@ -7,3 +7,4 @@ broadcast/
 .env.*
 dryrun.log
 deployments/*-dryrun.json
+mainnet-deploy.log

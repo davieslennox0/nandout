@@ -15,9 +15,33 @@ the world in Solidity, pack the facts into bits, and act on the circuit's verdic
 | Consumer | What the circuit decides | State |
 |---|---|---|
 | **Gate** (`LatchGate`) | Whether an Ignix launch is *unlatched* (passes a filter). Vaults, agents and traders call `check` / `checkMany`: free, view-only. | **Live on mainnet.** The attestor scores every Ignix launch (5,144 registered on 2026-09-28) every 10 minutes. |
-| **NexusHook: fee tier** (`hook/`, `FeeCircuitHook`) | What a swap costs: the LP fee tier of a Uniswap v4 pool, from 5 facts about volatility and depth. The circuits' full output is precomputed at registration and looked up per swap (+11% gas). | **Fork-proven, not deployed.** Tested against the real X Layer PoolManager, processor and evaluator. [`docs/HOOK.md`](docs/HOOK.md) |
-| **NexusHook: FeeRoute** (`FeeRouteHook`) | Where that fee goes: calm buys to a reserve, calm sells to a holder sink, and LPs whenever volatility is high or depth is thin. Destinations and mapping are immutable. | **Fork-proven, not deployed.** A malicious TapeOut upgrade cannot redirect fees (tested). +24.5% gas, mostly the per-swap transfer. |
+| **NexusHook** (`hook/`, `FeeRouteHook`) | What a swap costs (LP fee tier from volatility and scale-free depth facts) and where the fee goes (route circuits). Full circuit output precomputed at deploy, looked up per swap. | **Live on mainnet, contracts only, no pool:** [`0x9553…40cc`](https://www.oklink.com/xlayer/address/0x9553b82baf7eb83e155b33f003d89aa1d1b040cc), verified. A hostile TapeOut upgrade cannot change the tier or the destination (tested). [`docs/HOOK.md`](docs/HOOK.md) |
 | **Lock** (`LatchLock`) | When a creator's locked tranche may be released. Keeping ≥ 5% of supply locked sets the `LATCH_LOCKED` bit that Gate filters read. | **Deployed, narrow in practice** (below). |
+
+**NexusHook is live on X Layer mainnet: contracts only, no pool.** `FeeRouteHook`
+[`0x9553B82Baf7EB83e155b33F003d89Aa1D1b040cc`](https://www.oklink.com/xlayer/address/0x9553b82baf7eb83e155b33f003d89aa1d1b040cc)
+is verified on OKLink. Its four circuits are taped out on the Nandout processor: VOL_GUARD #7, DEPTH_GUARD #8,
+ROUTE_SPLIT #9 and ROUTE_GUARD #10.
+
+- **The hook is generic.** Any Uniswap v4 pool on X Layer can use it: create the pool with
+  `fee = DYNAMIC_FEE_FLAG` and `hooks = 0x9553…40cc`.
+- **LP fee.** Chosen per swap by the circuits from four fixed tiers: 0.05% / 0.30% / 0.60% / 1.00%.
+- **Hook fee.** It works exactly like Uniswap's own protocol fee: **1000 pips = 0.10% of the swap input, in both
+  directions**, taken before the LP fee. 1000 pips is v4's `MAX_PROTOCOL_FEE` cap, and v4 measures fees in pips, where
+  1,000,000 = 100%. It is paid to one immutable address, the **Nandout deploy wallet
+  `0x934d315C0a9C0866D393B722C1805F2B6b20b816`**.
+- **Everything else goes to the pool's own in-range LPs.** That covers the LP fee and a 5 bps route fee on every swap.
+- **Worked example.** A 1,000-token swap in the 0.30% tier pays:
+  - 1.000 token hook fee to the Nandout deploy wallet;
+  - 2.997 tokens LP fee (0.30% of the remaining 999) to in-range LPs;
+  - a route fee of 5 bps of the output (0.4975 tokens), also to in-range LPs.
+- **What the route circuits prove.** `ROUTE_SPLIT` / `ROUTE_GUARD` choose a route on every swap and emit it (`Routed`
+  event), but all four routes are wired to in-range LPs. In this configuration the routing has no differential economic
+  effect. What it demonstrates is that the fee *destination* is circuit-governed and immutable: nobody, including us, can
+  redirect it. The tier mechanism carries the fee.
+- **Why no pool.** Liquidity is capital, not gas. 13 of 49 graduated Ignix launches are untaxed into the v4 PoolManager
+  and therefore poolable; all 13 reconcile exactly with this hook on a fork
+  ([`docs/data/ignix-v4-tax-survey.csv`](docs/data/ignix-v4-tax-survey.csv)).
 
 **Lock is narrow, for measured reasons:**
 - **Pre-graduation tokens can't be locked.** Ignix tokens still on their bonding curve revert every transfer with
@@ -43,7 +67,7 @@ contracts keep their `Latch*` names, which is how they're verified on OKLink.
 | `contracts/` | `LatchFeed`, `LatchGate`, `LatchLock`, `LatchEvaluator`: **deployed and verified on X Layer mainnet** (addresses below). Foundry tests, plus a fork test against the real TapeOut contracts. |
 | `attestor/` | Ignix index + registry + X Layer Transfer logs → attested bits → LatchFeed, on a 10-minute cron. |
 | `web/` | nandout.xyz: launches, filters, per-token lock pages, badges, /lock, /creators. Built by GitHub Actions, served from our server. |
-| `hook/` | NexusHook `FeeCircuitHook` + fork tests + gas report. Not deployed. |
+| `hook/` | NexusHook `FeeRouteHook` (extends `FeeCircuitHook`): **deployed on X Layer mainnet (no pool)**, fork tests, gas report, deploy dry-run, mainnet verifier (`attestor/scripts/verify-feeroute.mjs`). |
 
 Research: [`docs/RECON.md`](docs/RECON.md) (TapeOut, Ignix, X Layer), [`docs/HOOK-RECON.md`](docs/HOOK-RECON.md) (Uniswap v4 on X Layer).
 
@@ -110,7 +134,7 @@ both results and exposes any divergence.
 it does not prove that every token was re-evaluated. `getBits` does return a per-token `updatedAt`, but it only moves when a
 token's bits change, and the deployed LatchGate/LatchLock (immutable) check only the global flag. So a token the attestor
 stopped evaluating would keep old bits while the feed reads fresh. This became real when Ignix's `/v1/launches` started
-returning only the newest 5,000 launches (unscoped page/limit are ignored; creator-scoped queries and `/v1/launches/{token}` do reach older ones): older launches silently dropped out of the attestor's view.
+returning only the newest 5,000 launches (unscoped page/limit were ignored; creator-scoped queries and `/v1/launches/{token}` did reach older ones): older launches silently dropped out of the attestor's view. As of 2026-09-28 the index no longer caps at 5,000; it returns all 5,153 launches, and the registry handles either behaviour.
 Mitigation, not a contract fix: the attestor keeps a durable registry of every launch it has ever seen, recomputes the
 on-chain bits (holders, top-10, dev outflows, LP) of all of them every cycle, refreshes out-of-index launches' Ignix
 fields via `/v1/launches/{token}` (tokens backing a lock every cycle, the rest round-robin), and publishes per-token

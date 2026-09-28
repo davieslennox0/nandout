@@ -7,8 +7,10 @@ pool on X Layer from a **taped-out TapeOut circuit**, not an admin parameter.
 thresholds. Nobody, including us, can quietly change the rules on LPs or traders. It is not "AI-driven dynamic fees",
 and the circuit does not compute fees: it cannot do arithmetic.
 
-**Status:** fork-proven, **not deployed**. Everything below comes from tests against a local fork of X Layer mainnet, using
-the real PoolManager, the real Nandout processor and the real LatchEvaluator. Phase 0 feasibility is in
+**Status:** `FeeRouteHook` is **deployed on X Layer mainnet (contracts only, no pool)** at
+[`0x9553B82Baf7EB83e155b33F003d89Aa1D1b040cc`](https://www.oklink.com/xlayer/address/0x9553b82baf7eb83e155b33f003d89aa1d1b040cc),
+verified on OKLink, with circuits #7–#10 on the Nandout processor; see [Deployment](#deployment-x-layer-mainnet). The
+tests below run against a local fork using the real PoolManager, the real Nandout processor and the real LatchEvaluator. Phase 0 feasibility is in
 [`HOOK-RECON.md`](HOOK-RECON.md).
 
 ## How it works
@@ -160,8 +162,11 @@ tier applies).
 
 ## FeeRoute: the circuit chooses where the fee goes
 
-`FeeRouteHook` extends `FeeCircuitHook`; one hook address carries both permission sets (beforeSwap + afterSwap +
-afterSwapReturnsDelta, so the address ends in `0x…00C4`).
+`FeeRouteHook` extends `FeeCircuitHook`; one hook address carries both permission sets. The deployed version has
+beforeSwap + afterSwap + beforeSwapReturnsDelta + afterSwapReturnsDelta (for the input-side hook fee), so the address
+ends in `0x…00CC`. **The deployed configuration wires all four routes to in-range LPs, with a 5 bps route fee**; see
+[Deployment](#deployment-x-layer-mainnet). The reserve and holder-sink destinations and the 1% route fee below are the
+test configuration, used to prove that routing to distinct addresses reconciles exactly.
 - **What it adds:** a fixed route fee (`routeBps`, 1% in the tests) on the unspecified side of every swap. Two more
   taped-out circuits choose its **destination** from four addresses fixed at deploy.
 - **Why it matters:** the fee rate is the smaller claim. Fee destination is where rug risk lives: "nobody can redirect
@@ -218,7 +223,7 @@ fork.
 | **0%: poolable** | **13** |
 | ~1% | 20 |
 | ~2% | 7 |
-| ~3% | 5 (plus IGNIXFROG, surveyed earlier) |
+| ~3% | 6 (5, plus IGNIXFROG surveyed earlier) |
 | ~10% | 1 |
 | Transfer reverts | 2 (V4-template JACKET and EEEE) |
 
@@ -294,3 +299,25 @@ impersonated, so no key is used. The table shows gas units from the fork receipt
 **Correction:** earlier versions of this file and of [`HOOK-RECON.md`](HOOK-RECON.md) priced gas at 0.02 OKB per 1M
 gas. The correct figure is **0.00002 OKB per 1M gas** (0.02 gwei = 2×10⁻⁸ OKB per gas). Every gas-derived OKB figure
 in those earlier estimates was 1,000× too high; fees and transistor value were stated correctly.
+
+## Deployment (X Layer mainnet)
+
+| | |
+|---|---|
+| FeeRouteHook | `0x9553B82Baf7EB83e155b33F003d89Aa1D1b040cc` (verified on OKLink; CREATE2 salt `0x…3736`; low 14 bits `0x00CC`) |
+| Circuits on the Nandout processor `0x8A60…a58E` | VOL_GUARD #7 · DEPTH_GUARD #8 · ROUTE_SPLIT #9 · ROUTE_GUARD #10 |
+| LP fee tiers | 0.05 / 0.30 / 0.60 / 1.00 % |
+| Hook fee | 1000 pips (0.10%) of the swap input, both directions (v4's protocol-fee model at its cap), to the Nandout deploy wallet `0x934d315C0a9C0866D393B722C1805F2B6b20b816` |
+| Route fee and destinations | 5 bps of the unspecified amount; all four routes go to the pool's in-range LPs |
+| Mode | generic: any pool (`token = 0`; a "buy" acquires currency1) |
+| Volatility triggers | 200 / 800 ticks per 60-block epoch (~2% / ~8%, scale-free) |
+| Depth | 50% / 25% of the pool's own baseline (scale-free) |
+| Deployed by | the Nandout deploy wallet, blocks 71,800,736–71,800,745; 0.021990 OKB total |
+
+**How it was checked** (on mainnet, `attestor/scripts/verify-feeroute.mjs`):
+- all four netlists are byte-identical to `hook/circuits/compile.ts` output, and so are the hook's SSTORE2 snapshots;
+- the tier table (`0xfdfdfdfdfdddfd88`) and route table (`0xbbb1bbb1bbb1bbb1`) match TapeOut's live `eval` for all 32
+  fact words;
+- every constructor value reads back as specified.
+
+**No pool is deployed.** Liquidity is capital, not gas. Transaction hashes are in [`SUBMISSION.md`](SUBMISSION.md).
