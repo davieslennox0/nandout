@@ -18,3 +18,6 @@ export const IGNIX_API = 'https://api.ignix.bot';
 export const IGNIX_LAUNCH_URL = (token: string) => `https://ignix.bot/launch?token=${token}`;
 export const EXPLORER = 'https://www.oklink.com/xlayer';
 export const TAPEOUT_FACTORY: Address = '0x1f09DAeFA827f02CBb40967cc91b259763760761';
+
+/** The Nandout deploy wallet: deployer of every Nandout contract and the NexusHook hook-fee recipient. */
+export const NANDOUT_DEPLOY_WALLET = '0x934d315C0a9C0866D393B722C1805F2B6b20b816';

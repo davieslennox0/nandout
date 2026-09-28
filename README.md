@@ -15,33 +15,64 @@ the world in Solidity, pack the facts into bits, and act on the circuit's verdic
 | Consumer | What the circuit decides | State |
 |---|---|---|
 | **Gate** (`LatchGate`) | Whether an Ignix launch is *unlatched* (passes a filter). Vaults, agents and traders call `check` / `checkMany`: free, view-only. | **Live on mainnet.** The attestor scores every Ignix launch (5,144 registered on 2026-09-28) every 10 minutes. |
-| **NexusHook** (`hook/`, `FeeRouteHook`) | What a swap costs (LP fee tier from volatility and scale-free depth facts) and where the fee goes (route circuits). Full circuit output precomputed at deploy, looked up per swap. | **Live on mainnet, contracts only, no pool:** [`0x9553…40cc`](https://www.oklink.com/xlayer/address/0x9553b82baf7eb83e155b33f003d89aa1d1b040cc), verified. A hostile TapeOut upgrade cannot change the tier or the destination (tested). [`docs/HOOK.md`](docs/HOOK.md) |
+| **NexusHook** (`hook/`, `FeeRouteHook`) | What a swap costs (LP fee tier from volatility and scale-free depth facts) and where the fee goes (route circuits). Full circuit output precomputed at deploy, looked up per swap. | **Live on mainnet:** v2 [`0xfd77…80c4`](https://www.oklink.com/xlayer/address/0xfd77af872a8f590680fd27d79319e2e4e08e80c4), verified; our own disclosed demo pool (below). A hostile TapeOut upgrade cannot change the tier or the destination (tested). v1 `0x9553…40cc` is deprecated. [`docs/HOOK.md`](docs/HOOK.md) |
 | **Lock** (`LatchLock`) | When a creator's locked tranche may be released. Keeping ≥ 5% of supply locked sets the `LATCH_LOCKED` bit that Gate filters read. | **Deployed, narrow in practice** (below). |
 
-**NexusHook is live on X Layer mainnet: contracts only, no pool.** `FeeRouteHook`
-[`0x9553B82Baf7EB83e155b33F003d89Aa1D1b040cc`](https://www.oklink.com/xlayer/address/0x9553b82baf7eb83e155b33f003d89aa1d1b040cc)
+**NexusHook is live on X Layer mainnet.** `FeeRouteHook` v2
+[`0xfd77af872A8f590680Fd27D79319e2e4E08E80c4`](https://www.oklink.com/xlayer/address/0xfd77af872a8f590680fd27d79319e2e4e08e80c4)
 is verified on OKLink. Its four circuits are taped out on the Nandout processor: VOL_GUARD #7, DEPTH_GUARD #8,
 ROUTE_SPLIT #9 and ROUTE_GUARD #10.
 
-- **The hook is generic.** Any Uniswap v4 pool on X Layer can use it: create the pool with
-  `fee = DYNAMIC_FEE_FLAG` and `hooks = 0x9553…40cc`.
+- **The hook is generic.** Any Uniswap v4 pool on X Layer can use it: create the pool with `fee = DYNAMIC_FEE_FLAG`
+  and `hooks = 0xfd77…80c4`.
 - **LP fee.** Chosen per swap by the circuits from four fixed tiers: 0.05% / 0.30% / 0.60% / 1.00%.
-- **Hook fee.** It works exactly like Uniswap's own protocol fee: **1000 pips = 0.10% of the swap input, in both
-  directions**, taken before the LP fee. 1000 pips is v4's `MAX_PROTOCOL_FEE` cap, and v4 measures fees in pips, where
-  1,000,000 = 100%. It is paid to one immutable address, the **Nandout deploy wallet
-  `0x934d315C0a9C0866D393B722C1805F2B6b20b816`**.
-- **Everything else goes to the pool's own in-range LPs.** That covers the LP fee and a 5 bps route fee on every swap.
-- **Worked example.** A 1,000-token swap in the 0.30% tier pays:
-  - 1.000 token hook fee to the Nandout deploy wallet;
-  - 2.997 tokens LP fee (0.30% of the remaining 999) to in-range LPs;
-  - a route fee of 5 bps of the output (0.4975 tokens), also to in-range LPs.
-- **What the route circuits prove.** `ROUTE_SPLIT` / `ROUTE_GUARD` choose a route on every swap and emit it (`Routed`
-  event), but all four routes are wired to in-range LPs. In this configuration the routing has no differential economic
-  effect. What it demonstrates is that the fee *destination* is circuit-governed and immutable: nobody, including us, can
-  redirect it. The tier mechanism carries the fee.
-- **Why no pool.** Liquidity is capital, not gas. 13 of 49 graduated Ignix launches are untaxed into the v4 PoolManager
-  and therefore poolable; all 13 reconcile exactly with this hook on a fork
-  ([`docs/data/ignix-v4-tax-survey.csv`](docs/data/ignix-v4-tax-survey.csv)).
+- **Route circuits.** `ROUTE_SPLIT` / `ROUTE_GUARD` choose a route on every swap and emit it (`Routed` event), but all
+  four routes are wired to in-range LPs, together with a 5 bps route fee. In this configuration the routing has no
+  differential economic effect. What it demonstrates is that the fee *destination* is circuit-governed and immutable:
+  nobody, including us, can redirect it. The tier mechanism carries the fee.
+
+**Hook fee: 1000 pips (0.10%), Uniswap v4's protocol-fee cap, taken with the mechanics of v4-core's FeeTakingHook:**
+on the swap's unspecified side and on the amount that actually filled. That's the output of an exact-input swap, or the
+input of an exact-output swap. It is paid to the **Nandout deploy wallet `0x934d315C0a9C0866D393B722C1805F2B6b20b816`**.
+This is a different denomination from v4's own protocol fee, which is always taken from the input. Everything else goes
+to the pool's own in-range LPs.
+
+Worked example, a 1,000-token exact-input swap in the 0.30% tier:
+- 3.000 LP fee to in-range LPs;
+- 0.996 hook fee to the Nandout deploy wallet;
+- 0.498 route fee to in-range LPs;
+- the trader receives 994.51.
+
+The hook fee and the route fee are in the output token.
+
+**Our own demo pool, with liquidity we supplied.** This is Nandout's pool, not organic activity.
+- **Pool:** native OKB / XCAT (`0xbB9A906f1A8906D548C5D94b7079fA31bF09EEee`, a graduated Ignix launch and one of the 13
+  poolable ones) on FeeRouteHook v2, pool ID `0x806bfd9c404564f6f26de8355dc9a54dfab0064af57841d872124a8185a32671`.
+- **Liquidity:** 0.0614 OKB + 1,649,399.07 XCAT, full range, supplied by the Nandout deploy wallet (position NFT #12817).
+  We plan to withdraw it after judging (Oct 6, 04:00 UTC).
+- **The XCAT:** bought in **one** open-market purchase for this demo and the test lock below
+  (tx `0x0c9162c7e84c13afa3df8f6f700eff8a7fa91d8982f10fd058055cd88f13bb0a`). It will not be traded again.
+- **We have made no swaps in this pool.** The hackathon rules void self-trading, so the tier evidence is:
+  - read-only reads of the live pool (`currentFacts` → tier 0 → 0.05%);
+  - a fork of mainnet at the live pool's state (0.05% calm → 0.60% volatile → 1.00% volatile and thin; state discarded);
+  - the 32 real swaps in the fork test suite.
+- **The hook fee from any swap here goes to the Nandout deploy wallet.** Swaps by anyone else will be recorded as outside
+  usage. None as of this writing.
+
+**Our own test lock.**
+- **The lock:** LatchLock lock #1. 1,666,059.66 XCAT requested; **1,657,729.37 XCAT actually locked**, after LatchLock's
+  0.5% fee (the transfer into LatchLock was untaxed).
+- **Terms:** one tranche, 100% on UNLOCK_T1; beneficiary the Nandout deploy wallet
+  (tx `0x2f7bcb3dfb0d40dfd76c07b95a8ed62b78b7306bb5b9e6a28eea4e47204e602f`).
+- **`LATCH_LOCKED` stays off for XCAT,** because we are not its creator. It is a test of the lock path, not a creator lock.
+
+**Deprecated: FeeRouteHook v1 `0x9553B82Baf7EB83e155b33F003d89Aa1D1b040cc`.**
+- **The bug:** it charged the exact-input hook fee in `beforeSwap` on the amount the trader *specified*, not the amount
+  that filled. A partially filled swap (price-limited, or running out of in-range liquidity) paid the fee on input that
+  never swapped, and very large specified amounts reverted.
+- **Status:** it stays on-chain because it is immutable (no owner, no upgrade path). **No pool ever used it.**
+- **Replacement:** v2 `0xfd77af872A8f590680Fd27D79319e2e4E08E80c4`, deployed 2026-09-28, tx `0x12bbd5010ad326c03618bfefcec47dba4990b020974e0bba625f7a1bf7a22150`.
+- **Regression test:** `test_partialFillPaysHookFeeOnlyOnFilledAmount`.
 
 **Lock is narrow, for measured reasons:**
 - **Pre-graduation tokens can't be locked.** Ignix tokens still on their bonding curve revert every transfer with

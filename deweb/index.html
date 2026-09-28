@@ -51,22 +51,22 @@ Nandout
 <p class="lede">Rules become taped-out TapeOut circuits: NAND netlists, immutable once registered. Consumers measure the world, pack facts into bits and act on the circuit's verdict. Nandout's circuits decide whether capital should enter an Ignix launch (<span class="un">Gate</span>), what a Uniswap v4 swap costs and where that fee goes (<span class="un">NexusHook</span>), and when a creator's locked tokens may be released (<span class="un">Lock</span>).</p>
 <a class="btn" href="https://nandout.xyz">Open the live app</a><a class="btn g" href="https://github.com/davieslennox0/nandout">Source</a>
 
-<h2>Snapshot at block 71,810,366 <span class="chip">2026-09-28 07:10 UTC</span></h2>
+<h2>Snapshot at block 71,815,769 <span class="chip">2026-09-28 08:40 UTC</span></h2>
 <p>Baked in when this page was written to chain. Live numbers are on nandout.xyz and on-chain via <code>LatchGate.checkMany</code>.</p>
 <div class="grid">
-<div class="card stat"><b>5,211</b><span>Ignix launches attested</span></div>
-<div class="card stat"><b>49</b><span>graduated to a pool</span></div>
+<div class="card stat"><b>5,238</b><span>Ignix launches attested</span></div>
+<div class="card stat"><b>50</b><span>graduated to a pool</span></div>
 <div class="card stat"><b>19</b><span>linked to an OKX.AI agent</span></div>
 </div>
 <div class="box" style="margin-top:12px">
 <table>
 <tr><th>Circuit</th><th>Kind</th><th>Rule</th><th class="r">Transistors</th><th class="r">Unlatched</th></tr>
-<tr><td>BASIC_SAFETY</td><td><span class="chip">filter</span></td><td class="rule">LP_LOCKED ∧ TOP10_LT_40 ∧ DEV_NO_SELL_7D</td><td class="r">4</td><td class="r"><span class="chip g">17</span></td></tr>
+<tr><td>BASIC_SAFETY</td><td><span class="chip">filter</span></td><td class="rule">LP_LOCKED ∧ TOP10_LT_40 ∧ DEV_NO_SELL_7D</td><td class="r">4</td><td class="r"><span class="chip g">18</span></td></tr>
 <tr><td>MARKET_SAFE</td><td><span class="chip">filter</span></td><td class="rule">(LP_LOCKED ∨ HOLDERS_GE_100) ∧ DEV_NO_SELL_7D ∧ ¬LP_PULLED</td><td class="r">8</td><td class="r"><span class="chip g">38</span></td></tr>
 <tr><td>REVENUE_AGENTS</td><td><span class="chip">filter</span></td><td class="rule">AGENT_LINKED ∧ REV_GT_0 ∧ LP_LOCKED</td><td class="r">4</td><td class="r"><span class="chip g">3</span></td></tr>
 <tr><td>STRICT</td><td><span class="chip">filter</span></td><td class="rule">AGENT_LINKED ∧ REV_GT_0 ∧ LP_LOCKED ∧ TOP10_LT_25 ∧ DEV_NO_SELL_7D ∧ (LATCH_LOCKED ∨ AGE_GE_30D)</td><td class="r">13</td><td class="r"><span class="chip">0</span></td></tr>
 <tr><td>STICKY_SAFETY</td><td><span class="chip">latch</span></td><td class="rule">set: TOP10_LT_40 ∧ DEV_NO_SELL_7D ∧ HOLDERS_GE_100 · reset: ¬DEV_NO_SELL_7D ∨ LP_PULLED</td><td class="r">11</td><td class="r"><span class="chip g">20</span></td></tr>
-<tr><td>UNLOCK_T1</td><td><span class="chip">unlock</span></td><td class="rule">AGE_GE_7D ∧ LP_LOCKED ∧ HOLDERS_GE_100</td><td class="r">4</td><td class="r"><span class="chip g">26</span></td></tr>
+<tr><td>UNLOCK_T1</td><td><span class="chip">unlock</span></td><td class="rule">AGE_GE_7D ∧ LP_LOCKED ∧ HOLDERS_GE_100</td><td class="r">4</td><td class="r"><span class="chip g">27</span></td></tr>
 <tr><td>UNLOCK_T2</td><td><span class="chip">unlock</span></td><td class="rule">AGE_GE_30D ∧ REV_GE_10 ∧ HOLDERS_GE_300 ∧ LP_LOCKED</td><td class="r">6</td><td class="r"><span class="chip">0</span></td></tr>
 <tr><td>VOL_GUARD</td><td><span class="chip">fee tier</span></td><td class="rule">VOL_HIGH ∨ (VOL_ELEVATED ∧ (DEPTH_THIN ∨ DEPTH_DRAIN))</td><td class="r">6</td><td class="r"><span class="chip">—</span></td></tr>
 <tr><td>DEPTH_GUARD</td><td><span class="chip">fee tier</span></td><td class="rule">DEPTH_THIN ∨ DEPTH_CRITICAL ∨ DEPTH_DRAIN</td><td class="r">6</td><td class="r"><span class="chip">—</span></td></tr>
@@ -76,8 +76,11 @@ Nandout
 </div>
 
 <h2>NexusHook: circuit-governed Uniswap v4 fees</h2>
-<p><code>FeeRouteHook</code> is a generic v4 hook: any pool on X Layer may use it. Two circuits pick the LP fee tier (0.05 / 0.30 / 0.60 / 1.00%) from volatility and depth measured against each pool's own baseline. Two more pick where a 5 bps route fee goes, and every route is wired to the pool's in-range LPs. Each circuit's full output was computed once at deploy, so a TapeOut upgrade cannot change the fee or its destination.</p>
-<p><b>Hook fee, disclosed:</b> 1000 pips (0.10%) of the swap input in both directions, the same model and cap as Uniswap's own protocol fee. It is paid to the Nandout deploy wallet <code>0x934d315C0a9C0866D393B722C1805F2B6b20b816</code>, and everything else goes to the pool's LPs. For example, a 1,000-token swap in the 0.30% tier pays 1.000 to the deploy wallet, 2.997 LP fee and a 0.4975 route fee to LPs. No pool is deployed yet: liquidity is capital, not gas.</p>
+<p><code>FeeRouteHook</code> v2 is a generic v4 hook: any pool on X Layer may use it. Two circuits pick the LP fee tier (0.05 / 0.30 / 0.60 / 1.00%) from volatility and depth measured against each pool's own baseline. Two more pick where a 5 bps route fee goes, and every route is wired to the pool's in-range LPs. Each circuit's full output was computed once at deploy, so a TapeOut upgrade cannot change the fee or its destination.</p>
+<p><b>Hook fee, disclosed:</b> 1000 pips (0.10%), Uniswap v4's protocol-fee cap, taken with the mechanics of v4-core's FeeTakingHook: on the swap's unspecified side and on the amount that actually filled (the output of an exact-input swap, the input of an exact-output swap). It is paid to the Nandout deploy wallet <code>0x934d315C0a9C0866D393B722C1805F2B6b20b816</code>. This is a different denomination from v4's own protocol fee, which is always taken from the input. Everything else goes to the pool's in-range LPs. For example, a 1,000-token exact-input swap in the 0.30% tier pays 3.000 LP fee to LPs, 0.996 hook fee to the deploy wallet and 0.498 route fee to LPs, and the trader receives 994.51.</p>
+<div class="card" style="border-color:rgba(201,154,78,.45);background:rgba(201,154,78,.08)"><p style="margin:0;color:var(--paper)"><b>Our own demo pool, with liquidity we supplied:</b> native OKB / XCAT (a graduated Ignix launch) on FeeRouteHook v2, with 0.0614 OKB + 1,649,399 XCAT from the Nandout deploy wallet (position NFT #12817). We bought the XCAT once on the open market for this demo and for our own test lock. <b>We have made no swaps in this pool</b>, because the hackathon rules void self-trading. The tier evidence is read-only reads of the live pool, a fork of mainnet at its state, and fork tests. Any swap in it is outside usage, and its hook fee goes to the deploy wallet.</p></div>
+<div class="card" style="margin-top:10px;border-color:rgba(201,154,78,.45);background:rgba(201,154,78,.08)"><p style="margin:0;color:var(--paper)"><b>Our own test lock:</b> LatchLock lock #1. 1,666,059.66 XCAT requested, 1,657,729.37 actually locked after the 0.5% fee, 100% on UNLOCK_T1. LATCH_LOCKED stays off because we are not XCAT's creator: it tests the lock path and is not a creator lock.</p></div>
+<div class="card" style="margin-top:10px"><p style="margin:0"><b>Deprecated: FeeRouteHook v1 <code>0x9553B82Baf7EB83e155b33F003d89Aa1D1b040cc</code>.</b> It charged the exact-input hook fee in beforeSwap on the amount the trader specified, not the amount that filled, so a partially filled swap paid the fee on input that never swapped, and very large specified amounts reverted. It stays on-chain because it is immutable (no owner, no upgrade path). No pool ever used it.</p></div>
 
 <h2>Contracts on X Layer (chainId 196), verified on OKLink</h2>
 <div class="box">
@@ -87,7 +90,8 @@ Nandout
 <tr><td>LatchLock</td><td class="mono"><a href="https://www.oklink.com/xlayer/address/0xBe9ae981ec742B9053AD802a1D6A2B96E58b67f1">0xBe9ae981ec742B9053AD802a1D6A2B96E58b67f1</a></td></tr>
 <tr><td>LatchFeed</td><td class="mono"><a href="https://www.oklink.com/xlayer/address/0x81Ea55c0d48fB985707eA224dC099Ff3C8f2AD78">0x81Ea55c0d48fB985707eA224dC099Ff3C8f2AD78</a></td></tr>
 <tr><td>LatchEvaluator</td><td class="mono"><a href="https://www.oklink.com/xlayer/address/0x8cA3ecB418962801e64FF1e847a444fAB6352D03">0x8cA3ecB418962801e64FF1e847a444fAB6352D03</a></td></tr>
-<tr><td>FeeRouteHook (NexusHook)</td><td class="mono"><a href="https://www.oklink.com/xlayer/address/0x9553B82Baf7EB83e155b33F003d89Aa1D1b040cc">0x9553B82Baf7EB83e155b33F003d89Aa1D1b040cc</a></td></tr>
+<tr><td>FeeRouteHook v2 (NexusHook)</td><td class="mono"><a href="https://www.oklink.com/xlayer/address/0xfd77af872A8f590680Fd27D79319e2e4E08E80c4">0xfd77af872A8f590680Fd27D79319e2e4E08E80c4</a></td></tr>
+<tr><td>FeeRouteHook v1 (deprecated, unused)</td><td class="mono"><a href="https://www.oklink.com/xlayer/address/0x9553B82Baf7EB83e155b33F003d89Aa1D1b040cc">0x9553B82Baf7EB83e155b33F003d89Aa1D1b040cc</a></td></tr>
 <tr><td>Nandout processor (500,000 transistors @ 0.001 OKB)</td><td class="mono"><a href="https://www.oklink.com/xlayer/address/0x8A60B4A4BCf4066F5E5F9A406fE09c5e4f52a58E">0x8A60B4A4BCf4066F5E5F9A406fE09c5e4f52a58E</a></td></tr>
 </table>
 </div>
@@ -98,7 +102,7 @@ Nandout
 <tr><th>Component</th><th>Upgradeable?</th><th>Who can change it</th></tr>
 <tr><td>LatchEvaluator</td><td><span class="chip g">No</span></td><td>Nobody. No storage, no owner, no proxy, view-only. Lock releases and the hook's tables are evaluated here.</td></tr>
 <tr><td>LatchLock, LatchGate</td><td><span class="chip g">No</span></td><td>Nobody. Immutable and ownerless. Funds release only to the beneficiary.</td></tr>
-<tr><td>FeeRouteHook</td><td><span class="chip g">No</span></td><td>Nobody. No owner, no setters. Tiers, thresholds, routes and the hook-fee recipient are fixed at deploy.</td></tr>
+<tr><td>FeeRouteHook (v1 and v2)</td><td><span class="chip g">No</span></td><td>Nobody. No owner, no setters. Tiers, thresholds, routes and the hook-fee recipient are fixed at deploy.</td></tr>
 <tr><td>LatchFeed</td><td><span class="chip">No (code)</span></td><td>Owner can only add or remove attestors. LP_PULLED can never be cleared.</td></tr>
 <tr><td>TapeOut factory + beacons</td><td><span class="chip a">Yes</span></td><td>TapeOut's owner (<code>isSealed() == false</code>). Lock releases and hook fees never depend on it.</td></tr>
 <tr><td>DeWEB store serving this page</td><td><span class="chip a">Yes</span></td><td>DeWEB's owner. TapeKit pins the implementation and refuses to read if it changes.</td></tr>

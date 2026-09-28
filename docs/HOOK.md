@@ -7,11 +7,11 @@ pool on X Layer from a **taped-out TapeOut circuit**, not an admin parameter.
 thresholds. Nobody, including us, can quietly change the rules on LPs or traders. It is not "AI-driven dynamic fees",
 and the circuit does not compute fees: it cannot do arithmetic.
 
-**Status:** `FeeRouteHook` is **deployed on X Layer mainnet (contracts only, no pool)** at
-[`0x9553B82Baf7EB83e155b33F003d89Aa1D1b040cc`](https://www.oklink.com/xlayer/address/0x9553b82baf7eb83e155b33f003d89aa1d1b040cc),
-verified on OKLink, with circuits #7–#10 on the Nandout processor; see [Deployment](#deployment-x-layer-mainnet). The
-tests below run against a local fork using the real PoolManager, the real Nandout processor and the real LatchEvaluator. Phase 0 feasibility is in
-[`HOOK-RECON.md`](HOOK-RECON.md).
+**Status:** `FeeRouteHook` v2 is **deployed on X Layer mainnet** at
+[`0xfd77af872A8f590680Fd27D79319e2e4E08E80c4`](https://www.oklink.com/xlayer/address/0xfd77af872a8f590680fd27d79319e2e4e08e80c4), verified on OKLink, with circuits #7–#10 on the Nandout
+processor. It has **one pool: our own disclosed demo pool**, with liquidity we supplied and no swaps by us. See
+[Deployment](#deployment-x-layer-mainnet). v1 `0x9553…40cc` is deprecated (reason below). The tests run against a local
+fork using the real PoolManager, the real Nandout processor and the real LatchEvaluator.
 
 ## How it works
 
@@ -79,7 +79,8 @@ a balance.
 | **FeeCircuitHook: tier via table lookup** | **131,922** | **+12,310 (+10.3%)** |
 | Same hook, both tier circuits evaluated live every swap | 185,690 | +66,078 (+55.2%) |
 | FeeRouteHook: tier + route, no hook fee (earlier run) | 148,905 | +29,293 (+24.5%) |
-| **FeeRouteHook, final deploy config** (tier + 5 bps route to LPs + 1000-pip hook fee to the Nandout deploy wallet) | **164,343** | **+44,731 (+37.4%)** |
+| **FeeRouteHook v2, deployed config** (tier + 5 bps route to LPs + 1000-pip hook fee on the actual fill, to the Nandout deploy wallet) | **162,716** | **+43,104 (+36.0%)** |
+| (v1, deprecated: hook fee charged in beforeSwap) | 164,343 | +44,731 (+37.4%) |
 
 - **Methodology:** an earlier run of the tier hook, averaging swaps 2–4 of 4, measured +12,174 (+9.8%). The difference is
   the method, not the hook.
@@ -163,8 +164,8 @@ tier applies).
 ## FeeRoute: the circuit chooses where the fee goes
 
 `FeeRouteHook` extends `FeeCircuitHook`; one hook address carries both permission sets. The deployed version has
-beforeSwap + afterSwap + beforeSwapReturnsDelta + afterSwapReturnsDelta (for the input-side hook fee), so the address
-ends in `0x…00CC`. **The deployed configuration wires all four routes to in-range LPs, with a 5 bps route fee**; see
+beforeSwap + afterSwap + afterSwapReturnsDelta (the hook fee and the route fee are both taken in afterSwap, on the
+actual fill), so the address ends in `0x…00C4`. (Deprecated v1 also had beforeSwapReturnsDelta and ended in `0x…00CC`.) **The deployed configuration wires all four routes to in-range LPs, with a 5 bps route fee**; see
 [Deployment](#deployment-x-layer-mainnet). The reserve and holder-sink destinations and the 1% route fee below are the
 test configuration, used to prove that routing to distinct addresses reconciles exactly.
 - **What it adds:** a fixed route fee (`routeBps`, 1% in the tests) on the unspecified side of every swap. Two more
@@ -304,20 +305,56 @@ in those earlier estimates was 1,000× too high; fees and transistor value were 
 
 | | |
 |---|---|
-| FeeRouteHook | `0x9553B82Baf7EB83e155b33F003d89Aa1D1b040cc` (verified on OKLink; CREATE2 salt `0x…3736`; low 14 bits `0x00CC`) |
-| Circuits on the Nandout processor `0x8A60…a58E` | VOL_GUARD #7 · DEPTH_GUARD #8 · ROUTE_SPLIT #9 · ROUTE_GUARD #10 |
+| FeeRouteHook v2 | `0xfd77af872A8f590680Fd27D79319e2e4E08E80c4` (verified on OKLink; CREATE2 salt `0x…01da`; low 14 bits `0x00C4`; tx `0x12bbd501…2150`, block 71,814,843) |
+| Circuits on the Nandout processor `0x8A60…a58E` | VOL_GUARD #7 · DEPTH_GUARD #8 · ROUTE_SPLIT #9 · ROUTE_GUARD #10 (taped out once, reused by v2) |
 | LP fee tiers | 0.05 / 0.30 / 0.60 / 1.00 % |
-| Hook fee | 1000 pips (0.10%) of the swap input, both directions (v4's protocol-fee model at its cap), to the Nandout deploy wallet `0x934d315C0a9C0866D393B722C1805F2B6b20b816` |
 | Route fee and destinations | 5 bps of the unspecified amount; all four routes go to the pool's in-range LPs |
 | Mode | generic: any pool (`token = 0`; a "buy" acquires currency1) |
 | Volatility triggers | 200 / 800 ticks per 60-block epoch (~2% / ~8%, scale-free) |
 | Depth | 50% / 25% of the pool's own baseline (scale-free) |
-| Deployed by | the Nandout deploy wallet, blocks 71,800,736–71,800,745; 0.021990 OKB total |
+| Tables | tier `0xfdfdfdfdfdddfd88`, route `0xbbb1bbb1bbb1bbb1`: TapeOut live eval for all 32 fact words, checked on mainnet |
 
-**How it was checked** (on mainnet, `attestor/scripts/verify-feeroute.mjs`):
-- all four netlists are byte-identical to `hook/circuits/compile.ts` output, and so are the hook's SSTORE2 snapshots;
-- the tier table (`0xfdfdfdfdfdddfd88`) and route table (`0xbbb1bbb1bbb1bbb1`) match TapeOut's live `eval` for all 32
-  fact words;
-- every constructor value reads back as specified.
+**Hook fee: 1000 pips (0.10%), Uniswap v4's protocol-fee cap, taken with the mechanics of v4-core's FeeTakingHook:**
+on the swap's unspecified side and on the amount that actually filled. That's the output of an exact-input swap, or the
+input of an exact-output swap. It is paid to the **Nandout deploy wallet `0x934d315C0a9C0866D393B722C1805F2B6b20b816`**.
+This is a different denomination from v4's own protocol fee, which is always taken from the input. Everything else goes
+to the pool's own in-range LPs.
 
-**No pool is deployed.** Liquidity is capital, not gas. Transaction hashes are in [`SUBMISSION.md`](SUBMISSION.md).
+Worked example, a 1,000-token exact-input swap in the 0.30% tier:
+- 3.000 LP fee to in-range LPs;
+- 0.996 hook fee to the Nandout deploy wallet;
+- 0.498 route fee to in-range LPs;
+- the trader receives 994.51.
+
+The hook fee and the route fee are in the output token.
+
+**Our own demo pool, with liquidity we supplied.** This is Nandout's pool, not organic activity.
+- **Pool:** native OKB / XCAT (`0xbB9A906f1A8906D548C5D94b7079fA31bF09EEee`, a graduated Ignix launch and one of the 13
+  poolable ones) on FeeRouteHook v2, pool ID `0x806bfd9c404564f6f26de8355dc9a54dfab0064af57841d872124a8185a32671`.
+- **Liquidity:** 0.0614 OKB + 1,649,399.07 XCAT, full range, supplied by the Nandout deploy wallet (position NFT #12817).
+  We plan to withdraw it after judging (Oct 6, 04:00 UTC).
+- **The XCAT:** bought in **one** open-market purchase for this demo and the test lock below
+  (tx `0x0c9162c7e84c13afa3df8f6f700eff8a7fa91d8982f10fd058055cd88f13bb0a`). It will not be traded again.
+- **We have made no swaps in this pool.** The hackathon rules void self-trading, so the tier evidence is:
+  - read-only reads of the live pool (`currentFacts` → tier 0 → 0.05%);
+  - a fork of mainnet at the live pool's state (0.05% calm → 0.60% volatile → 1.00% volatile and thin; state discarded);
+  - the 32 real swaps in the fork test suite.
+- **The hook fee from any swap here goes to the Nandout deploy wallet.** Swaps by anyone else will be recorded as outside
+  usage. None as of this writing.
+
+**Our own test lock.**
+- **The lock:** LatchLock lock #1. 1,666,059.66 XCAT requested; **1,657,729.37 XCAT actually locked**, after LatchLock's
+  0.5% fee (the transfer into LatchLock was untaxed).
+- **Terms:** one tranche, 100% on UNLOCK_T1; beneficiary the Nandout deploy wallet
+  (tx `0x2f7bcb3dfb0d40dfd76c07b95a8ed62b78b7306bb5b9e6a28eea4e47204e602f`).
+- **`LATCH_LOCKED` stays off for XCAT,** because we are not its creator. It is a test of the lock path, not a creator lock.
+
+**Deprecated: FeeRouteHook v1 `0x9553B82Baf7EB83e155b33F003d89Aa1D1b040cc`.**
+- **The bug:** it charged the exact-input hook fee in `beforeSwap` on the amount the trader *specified*, not the amount
+  that filled. A partially filled swap (price-limited, or running out of in-range liquidity) paid the fee on input that
+  never swapped, and very large specified amounts reverted.
+- **Status:** it stays on-chain because it is immutable (no owner, no upgrade path). **No pool ever used it.**
+- **Replacement:** v2 `0xfd77af872A8f590680Fd27D79319e2e4E08E80c4`, deployed 2026-09-28, tx `0x12bbd5010ad326c03618bfefcec47dba4990b020974e0bba625f7a1bf7a22150`.
+- **Regression test:** `test_partialFillPaysHookFeeOnlyOnFilledAmount`.
+
+Transaction hashes are in [`SUBMISSION.md`](SUBMISSION.md).

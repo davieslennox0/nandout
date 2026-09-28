@@ -5,7 +5,7 @@ import { BITS } from '@latch/compiler';
 import { Countdown } from '@/components/Countdown';
 import { ShareSnippets } from '@/components/ShareSnippets';
 import { BIT_LABELS, BIT_NAMES, isOnchain } from '@/lib/bits';
-import { DEPLOYMENT, deployed, EXPLORER, IGNIX_LAUNCH_URL } from '@/lib/config';
+import { DEPLOYMENT, deployed, EXPLORER, IGNIX_LAUNCH_URL, NANDOUT_DEPLOY_WALLET } from '@/lib/config';
 import { fmtDuration, has, secondsUntil, type Explained } from '@/lib/explain';
 import { explainFilter, pctOf, summarize, trancheStatus, type Summary } from '@/lib/lockstatus';
 import { ignixStatus, parseToken, readToken, type TokenView } from '@/lib/lockview';
@@ -73,6 +73,16 @@ export default async function LockStatusPage({ params, searchParams }: { params:
   return (
     <>
       <span className="eyebrow">Lock status · launched on Ignix</span>
+      {v.locks.some((l) => l.depositor.toLowerCase() === NANDOUT_DEPLOY_WALLET.toLowerCase()) && (
+        <div className="bar warn" style={{ marginBottom: 16 }}>
+          <span className="dot amber" />
+          <span>
+            <b>This token has Nandout&apos;s own test lock.</b> We bought this token once and locked part of it to exercise the lock path
+            end to end. It is not a creator lock, and it does not turn on LATCH_LOCKED, because we are not this token&apos;s creator.
+            {' '}<a href="/hook">Details</a>
+          </span>
+        </div>
+      )}
       <h1>{v.name ?? sym} <span className="muted">${sym}</span></h1>
       <p className="mono small muted" style={{ marginTop: 10, wordBreak: 'break-all' }}>
         {v.token} · <a href={IGNIX_LAUNCH_URL(v.token)}>launch page</a> · <a href={`${EXPLORER}/token/${v.token}`}>OKLink</a>
@@ -133,7 +143,13 @@ export default async function LockStatusPage({ params, searchParams }: { params:
         <div className="card" key={String(l.id)}>
           <div className="row" style={{ justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
             <h3 style={{ margin: 0 }}>Lock #{String(l.id)}</h3>
-            <span className={`chip ${s.creatorLocks.includes(l) ? 'accent' : ''}`}>{s.creatorLocks.includes(l) ? 'deposited by the creator' : 'not from the creator wallet: does not count'}</span>
+            <span className={`chip ${s.creatorLocks.includes(l) ? 'accent' : l.depositor.toLowerCase() === NANDOUT_DEPLOY_WALLET.toLowerCase() ? 'amber' : ''}`}>
+              {s.creatorLocks.includes(l)
+                ? 'deposited by the creator'
+                : l.depositor.toLowerCase() === NANDOUT_DEPLOY_WALLET.toLowerCase()
+                  ? "Nandout's own test lock: not from the creator, does not count"
+                  : 'not from the creator wallet: does not count'}
+            </span>
           </div>
           <div className="kv">
             <div><span>Beneficiary</span><b className="mono"><a href={`${EXPLORER}/address/${l.beneficiary}`}>{l.beneficiary}</a></b></div>

@@ -9,6 +9,7 @@ const LINKS = [
   ['/build', 'Build'],
   ['/lock', 'Lock'],
   ['/creators', 'Creators'],
+  ['/hook', 'Hook'],
   ['/circuits', 'Circuits'],
   ['/treasury', 'Treasury'],
   ['/docs', 'Docs'],

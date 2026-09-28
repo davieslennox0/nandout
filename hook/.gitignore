@@ -9,3 +9,7 @@ dryrun.log
 deployments/*-dryrun.json
 mainnet-deploy.log
 deployments/*-v2-dryrun.json
+redeploy-mainnet.log
+buy-mainnet.log
+pool-mainnet.log
+xcat-evidence.txt
