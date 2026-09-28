@@ -75,6 +75,7 @@ until 2026-12-26. The gateway serves only a boot page; the visitor's browser rea
 |---|---|
 | Open container (0.08 OKB) | `0xbeb23e3c4e59253fc30e22459d1271a496b5277415740fe7d7c8ad37eb1e885f` |
 | Write `index.html` (putFile) | `0xa16c3c487eb597f5f6b8d8018a7fe1c3604b087bfaf01273a36ed24fa55adbce` |
+| Update `index.html` (2026-09-28: decision-layer framing, MARKET_SAFE, NexusHook) | `0x20db762eb00347d2cae5d25eec16e255335ff9562b2c415ee0a02b151faf91a0` (11,551 bytes). A malformed attempt one minute earlier, `0xbcbf84da…11d8`, wrote an empty file and was immediately superseded. |
 | Activate `1.2.230.tape`, 3 months (0.078 OKB) | `0x2a4002e169e214513faac715cb01af3c68b5db52b2dd39b2fe7b9fc456777166` |
 
 **What DeWEB should become (from doing this):** its X Layer contracts exist but are hard to find. TapeKit issue #6
