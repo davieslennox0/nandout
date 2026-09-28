@@ -44,6 +44,9 @@ export const RPC = {
    * 1,000 addresses per call. Third-party infra: fine for development, replace with our own provider for production.
    */
   logs: process.env.LOG_RPC_URL ?? 'https://rpc.ignix.bot/rpc/196',
+  /** Used when the primary log RPC keeps failing: OKX's official X Layer RPC, which caps eth_getLogs at 100 blocks. */
+  logsFallback: process.env.LOG_RPC_FALLBACK ?? 'https://rpc.xlayer.tech',
+  fallbackRange: Number(process.env.LOG_FALLBACK_RANGE ?? 100),
   logRange: Number(process.env.LOG_RANGE ?? 5000),
   logAddresses: Number(process.env.LOG_ADDRESSES ?? 1000),
   logConcurrency: Number(process.env.LOG_CONCURRENCY ?? 4),

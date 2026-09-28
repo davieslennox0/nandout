@@ -67,18 +67,39 @@ export async function headBlock(url = RPC.read): Promise<{ number: number; times
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-async function getLogs(addresses: string[], from: number, to: number): Promise<RawLog[]> {
+async function getLogsFrom(url: string, addresses: string[], from: number, to: number, retries = 5): Promise<RawLog[]> {
   for (let attempt = 0; ; attempt++) {
     try {
-      return await rpc<RawLog[]>(RPC.logs, 'eth_getLogs', [
+      return await rpc<RawLog[]>(url, 'eth_getLogs', [
         { address: addresses, topics: [TRANSFER], fromBlock: `0x${from.toString(16)}`, toBlock: `0x${to.toString(16)}` },
       ]);
     } catch (e) {
       const msg = String((e as Error).message);
       if (/range|too many|exceed|limit|size/i.test(msg) && to > from) throw Object.assign(new Error(msg), { split: true });
-      if (attempt >= 5) throw e;
-      await sleep(500 * 2 ** attempt);
+      if (attempt >= retries) throw e;
+      await sleep(Number(process.env.LOG_RETRY_MS ?? 500) * 2 ** attempt);
     }
+  }
+}
+
+let fallbackNotices = 0;
+
+/**
+ * Primary log RPC (large ranges). If it keeps failing for reasons other than range size (down, rate-limited, or answering
+ * with an HTML page), the same range is fetched from the fallback RPC in `RPC.fallbackRange`-block chunks, so a cycle
+ * never stalls on one provider. Exported for tests.
+ */
+export async function getLogs(addresses: string[], from: number, to: number): Promise<RawLog[]> {
+  try {
+    return await getLogsFrom(RPC.logs, addresses, from, to);
+  } catch (e) {
+    if ((e as { split?: boolean }).split) throw e;
+    if (fallbackNotices++ < 3) console.error(`log RPC ${RPC.logs} failed (${String((e as Error).message).slice(0, 80)}); using ${RPC.logsFallback} in ${RPC.fallbackRange}-block chunks`);
+    const out: RawLog[] = [];
+    for (let b = from; b <= to; b += RPC.fallbackRange) {
+      out.push(...(await getLogsFrom(RPC.logsFallback, addresses, b, Math.min(to, b + RPC.fallbackRange - 1))));
+    }
+    return out;
   }
 }
 
