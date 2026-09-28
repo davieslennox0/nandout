@@ -76,7 +76,8 @@ a balance.
 | No hook, static 0.30% | 119,612 | — |
 | **FeeCircuitHook: tier via table lookup** | **132,896** | **+13,284 (+11.1%)** |
 | Same hook, both tier circuits evaluated live every swap | 185,554 | +65,942 (+55.1%) |
-| **FeeRouteHook: tier + route (table lookups)** | **148,905** | **+29,293 (+24.5%)** |
+| FeeRouteHook: tier + route, no hook fee (earlier run) | 148,905 | +29,293 (+24.5%) |
+| **FeeRouteHook, final deploy config** (tier + 5 bps route to LPs + 1000-pip hook fee to the Nandout deploy wallet) | **164,173** | **+44,561 (+37.3%)** |
 
 - **Methodology:** an earlier run of the tier hook, averaging swaps 2–4 of 4, measured +12,174 (+9.8%). The difference is
   the method, not the hook.
@@ -243,16 +244,28 @@ Here that took per-swap overhead from +66k (live) to +13k (table), with facts me
 vocabularies such as 5 bits are cheap. At 16 inputs it's 65,536 evaluations, which isn't practical. This is what makes
 immutable circuit logic viable where per-call evaluation is not.
 
-## Mainnet cost, if funded before Oct 6 (at 0.02 gwei)
+## Mainnet cost: measured dry-run of the final FeeRouteHook deploy
 
-| Item | Gas | OKB |
-|---|---|---|
-| Tape out VOL_GUARD + DEPTH_GUARD on the Nandout processor | 2 × (86k mint + ~227k tape-out) ≈ 626k | 0.0125 gas + 0.0159 fees = **0.028** |
-| └ of which transistors, 12 × 0.001 OKB | | 0.012, paid to the processor's creator (Nandout's own deployer), so it comes back |
-| └ TapeOut protocol fee 2 × 0.00066 + tape-out fee 2 × 0.0013 | | 0.0039 |
-| FeeCircuitHook deploy (hook-address mining is local and free) | 3.42M | **0.068** (FeeRouteHook: 5.24M = 0.105, plus two more tape-outs ≈ 0.02) |
-| One pool: initialize + add liquidity | ~0.31M | **0.006** (plus the liquidity itself, which is capital) |
-| **Lean total** (existing tokens and router) | | **≈ 0.10 OKB** (≈ 0.09 net of transistor proceeds) |
-| + two demo ERC-20s, a swap router, ~10 demo swaps | ~4.8M | + ≈ 0.10 → **≈ 0.20 OKB** |
+`hook/script/deploy.sh` (default mode) replays the exact deploy on a local fork of X Layer as the Nandout deploy wallet,
+impersonated, so no key is used. The table shows gas units from the fork receipts, priced at mainnet's 0.02 gwei
+(20,000,001 wei).
 
-No mainnet transaction has been sent for NexusHook.
+| Tx | Gas | Gas OKB | Value OKB |
+|---|---|---|---|
+| Mint 16 NAND transistors (one tx) | 86,399 | 0.0000017 | 0.01666 (16 × 0.001 to the processor creator + 0.00066 TapeOut protocol fee) |
+| Tape out VOL_GUARD | 223,740 | 0.0000045 | 0.0013 |
+| Tape out DEPTH_GUARD | 223,740 | 0.0000045 | 0.0013 |
+| Tape out ROUTE_SPLIT | 209,615 | 0.0000042 | 0.0013 |
+| Tape out ROUTE_GUARD | 210,354 | 0.0000042 | 0.0013 |
+| Deploy FeeRouteHook (CREATE2, mined address) | 5,460,227 | 0.0001092 | 0 |
+| **Total** | **6,414,075** | **0.000128** | **0.02186** |
+
+- **Total: ≈ 0.0220 OKB.**
+- **Net ≈ 0.0060 OKB:** the 0.016 OKB transistor payment is owed to the processor's creator, which is the deploy wallet
+  itself, and can be withdrawn after the mint.
+- **Hook-address mining** is local and free.
+- **OKLink verification** is free.
+
+**Correction:** earlier versions of this file and of [`HOOK-RECON.md`](HOOK-RECON.md) priced gas at 0.02 OKB per 1M
+gas. The correct figure is **0.00002 OKB per 1M gas** (0.02 gwei = 2×10⁻⁸ OKB per gas). Every gas-derived OKB figure
+in those earlier estimates was 1,000× too high; fees and transistor value were stated correctly.

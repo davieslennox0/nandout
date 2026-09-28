@@ -24,7 +24,7 @@ interface IERC20P {
 /// entering and leaving the PoolManager. Any tax in either direction breaks an equality (or v4 settlement).
 contract IgnixPoolableForkTest is HookForkBase {
     uint160 internal constant ROUTE_FLAGS =
-        uint160(Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG);
+        uint160(Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG);
     uint16 internal constant ROUTE_BPS = 100;
     FeeCircuitHook.Guard internal splitGuard;
     FeeCircuitHook.Guard internal routeGuardC;
@@ -74,7 +74,7 @@ contract IgnixPoolableForkTest is HookForkBase {
         address quote = address(t0) < token ? address(t0) : address(t1); // any mock works; keep a deterministic order
         (address c0, address c1) = quote < token ? (quote, token) : (token, quote);
         FeeRouteHook.RouteConfig memory r = FeeRouteHook.RouteConfig(
-            splitGuard, routeGuardC, [reserve, holders, address(0), address(0)], ROUTE_BPS, Currency.wrap(token)
+            splitGuard, routeGuardC, [reserve, holders, address(0), address(0)], ROUTE_BPS, Currency.wrap(token), 0, address(0)
         );
         bytes memory init = abi.encodePacked(type(FeeRouteHook).creationCode, abi.encode(PM, EVALUATOR, TAPEOUT, volGuard, depthGuard, FEES, T, EPOCH, r));
         address hook = _deployWith(init, ROUTE_FLAGS);

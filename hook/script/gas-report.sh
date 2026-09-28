@@ -21,7 +21,7 @@ r.transactions.forEach((t, i) => {
   if ((t.function || '').startsWith('swap(')) swaps.push(g[i]);
   if (t.transactionType === 'CALL' && t.contractAddress == null && (t.function || '') === '' ) deploys.push(g[i]);
 });
-const labels = ['plain_static_0.30', 'hook_tier_table', 'hook_tier_live_eval', 'hook_tier_plus_route'];
+const labels = ['plain_static_0.30', 'hook_tier_table', 'hook_tier_live_eval', 'hook_final_config'];
 // 6 alternating swaps per pool; steady = mean of swaps 3-6 (window slots written and both route sinks already funded).
 const rows = labels.map((l, k) => { const s = swaps.slice(k * 6, k * 6 + 6); return { pool: l, swaps: s, steady: Math.round((s[2] + s[3] + s[4] + s[5]) / 4) }; });
 const base = rows[0].steady;
@@ -30,5 +30,5 @@ const out = { forkBlock: Number(process.argv[2]), gasPriceWei: 20000001, rows: r
   tapeoutGas: r.transactions.map((t, i) => [t.function || '', g[i]]).filter(([f]) => f.startsWith('tapeout(') || f.startsWith('mint(uint256,uint256)')).map(([f, x]) => ({ f: f.split('(')[0], gas: x })) };
 require('fs').writeFileSync('gas-report.json', JSON.stringify(out, null, 2) + '\n');
 console.table(out.rows.map(({ pool, steady, overPlain, overPlainPct }) => ({ pool, steady, overPlain, overPlainPct })));
-console.log('hook deploy gas (tier table, tier live, tier+route):', out.hookDeployGas.join(', '), '| tape-out txs:', JSON.stringify(out.tapeoutGas));
+console.log('hook deploy gas (tier table, tier live, final FeeRouteHook):', out.hookDeployGas.join(', '), '| tape-out txs:', JSON.stringify(out.tapeoutGas));
 JS

@@ -5,3 +5,5 @@ broadcast/
 /bench/
 .env
 .env.*
+dryrun.log
+deployments/*-dryrun.json

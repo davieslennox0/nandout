@@ -177,7 +177,7 @@ contract FeeCircuitHook is IHooks {
         uint8 facts = _facts(key);
         _onFacts(key, params, facts);
         uint24 fee = feeOfTier(_tier(facts));
-        return (IHooks.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, fee | LPFeeLibrary.OVERRIDE_FEE_FLAG);
+        return (IHooks.beforeSwap.selector, _beforeSwapDelta(key, params), fee | LPFeeLibrary.OVERRIDE_FEE_FLAG);
     }
 
     /// @dev Measures the pool, updates the window, packs the 5 fact bits. Solidity does all arithmetic; the circuit
@@ -198,6 +198,11 @@ contract FeeCircuitHook is IHooks {
             curMin[id] = cm;
         }
         return _pack(w, cm, liq);
+    }
+
+    /// @dev Extension point: a delta charged on the swap before it executes (FeeRouteHook's input-side hook fee).
+    function _beforeSwapDelta(PoolKey calldata, SwapParams calldata) internal virtual returns (BeforeSwapDelta) {
+        return BeforeSwapDeltaLibrary.ZERO_DELTA;
     }
 
     /// @dev Extension point for consumers of the same facts (FeeRouteHook). No-op here.

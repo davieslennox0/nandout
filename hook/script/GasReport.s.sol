@@ -74,16 +74,16 @@ contract GasReport is Script {
         bytes memory args = abi.encode(PM, EVALUATOR, TAPEOUT, v, d, fees, t, uint32(60));
         address table = _deploy(abi.encodePacked(type(FeeCircuitHook).creationCode, args), 1 << 7);
         address live = _deploy(abi.encodePacked(type(LiveEvalHook).creationCode, args), 1 << 7);
+        // The final deploy configuration: generic, every route to in-range LPs, 5 bps route fee, 1000-pip hook fee.
         FeeRouteHook.RouteConfig memory r = FeeRouteHook.RouteConfig(
-            rs, rg, [address(uint160(uint256(keccak256("reserve")))), address(uint160(uint256(keccak256("holders")))), address(0), address(0)],
-            100, Currency.wrap(address(t1))
+            rs, rg, [address(0), address(0), address(0), address(0)], 5, Currency.wrap(address(0)), 1000, 0x934d315C0a9C0866D393B722C1805F2B6b20b816
         );
-        address route = _deploy(abi.encodePacked(type(FeeRouteHook).creationCode, abi.encode(PM, EVALUATOR, TAPEOUT, v, d, fees, t, uint32(60), r)), (1 << 7) | (1 << 6) | (1 << 2));
+        address route = _deploy(abi.encodePacked(type(FeeRouteHook).creationCode, abi.encode(PM, EVALUATOR, TAPEOUT, v, d, fees, t, uint32(60), r)), (1 << 7) | (1 << 6) | (1 << 3) | (1 << 2));
 
         _swaps("plain_static_0.30", _pool(address(0), 3000));
         _swaps("hook_tier_table", _pool(table, LPFeeLibrary.DYNAMIC_FEE_FLAG));
         _swaps("hook_tier_live_eval", _pool(live, LPFeeLibrary.DYNAMIC_FEE_FLAG));
-        _swaps("hook_tier_plus_route", _pool(route, LPFeeLibrary.DYNAMIC_FEE_FLAG));
+        _swaps("hook_final_config", _pool(route, LPFeeLibrary.DYNAMIC_FEE_FLAG));
         vm.stopBroadcast();
     }
 

@@ -47,7 +47,7 @@ contract FeeRouteForkTest is HookForkBase {
     using StateLibrary for IPoolManager;
 
     uint160 internal constant ROUTE_FLAGS =
-        uint160(Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG);
+        uint160(Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG);
     bytes32 internal constant ROUTED = keccak256("Routed(bytes32,uint8,address,address,uint256)");
     uint16 internal constant ROUTE_BPS = 100; // 1% route fee (large, so every rounding step is visible)
 
@@ -162,6 +162,41 @@ contract FeeRouteForkTest is HookForkBase {
         assertEq(hook.routeTable(), tableBefore);
     }
 
+    /// Deploy configuration: generic token, every route to in-range LPs. No address outside the pool receives anything.
+    function test_genericAllLpConfigPaysOnlyLps() public {
+        FeeRouteHook.RouteConfig memory r = FeeRouteHook.RouteConfig(
+            splitGuard, routeGuard, [address(0), address(0), address(0), address(0)], ROUTE_BPS, Currency.wrap(address(0)), 0, address(0)
+        );
+        bytes memory init = abi.encodePacked(type(FeeRouteHook).creationCode, abi.encode(PM, EVALUATOR, TAPEOUT, volGuard, depthGuard, FEES, T, EPOCH, r));
+        FeeRouteHook hook = FeeRouteHook(_deployWith(init, ROUTE_FLAGS));
+        PoolKey memory key = _pool(address(hook), 1e23);
+        PoolId id = key.toId();
+        for (uint256 i = 0; i < 4; i++) {
+            bool z = i % 2 == 0;
+            (uint256 fg0, uint256 fg1) = PM.getFeeGrowthGlobals(id);
+            uint128 liq = PM.getLiquidity(id);
+            uint256 pm0 = t0.balanceOf(address(PM));
+            uint256 pm1 = t1.balanceOf(address(PM));
+            uint256 me0 = t0.balanceOf(address(this));
+            uint256 me1 = t1.balanceOf(address(this));
+            vm.recordLogs();
+            swapRouter.swap(key, SwapParams(z, -1e18, z ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1), PoolSwapTest.TestSettings(false, false), "");
+            (uint8 route, address dest,, uint256 fee) = _routed(vm.getRecordedLogs());
+            assertEq(route, z ? 0 : 1, "calm: buy (acquire currency1) -> route 0, sell -> route 1");
+            assertEq(dest, address(0), "every route donates to LPs");
+            (uint256 fg0b, uint256 fg1b) = PM.getFeeGrowthGlobals(id);
+            // The route fee is taken on the output side and donated in that currency; nothing leaves the PoolManager but the swapper's output.
+            if (z) {
+                assertEq(pm1 - t1.balanceOf(address(PM)), t1.balanceOf(address(this)) - me1, "only the swapper's t1 left");
+                assertEq(fg1b - fg1, FullMath.mulDiv(fee, FixedPoint128.Q128, liq), "t1 fee growth = donated fee");
+            } else {
+                assertEq(pm0 - t0.balanceOf(address(PM)), t0.balanceOf(address(this)) - me0, "only the swapper's t0 left");
+                assertEq(fg0b - fg0, FullMath.mulDiv(fee, FixedPoint128.Q128, liq), "t0 fee growth = donated fee");
+            }
+        }
+        assertEq(t0.balanceOf(reserve) + t1.balanceOf(reserve) + t0.balanceOf(holders) + t1.balanceOf(holders), 0);
+    }
+
     function test_rejectsRouteFeeOutOfRange() public {
         FeeRouteHook.RouteConfig memory r = _routeConfig();
         r.routeBps = 1001;
@@ -178,7 +213,7 @@ contract FeeRouteForkTest is HookForkBase {
     // ---- helpers ----------------------------------------------------------------------------------------------------
 
     function _routeConfig() internal view returns (FeeRouteHook.RouteConfig memory) {
-        return FeeRouteHook.RouteConfig(splitGuard, routeGuard, [reserve, holders, address(0), address(0)], ROUTE_BPS, Currency.wrap(address(t1)));
+        return FeeRouteHook.RouteConfig(splitGuard, routeGuard, [reserve, holders, address(0), address(0)], ROUTE_BPS, Currency.wrap(address(t1)), 0, address(0));
     }
 
     function _deployRoute(bytes memory creationCode) internal returns (FeeRouteHook) {

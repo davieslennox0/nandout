@@ -10,6 +10,8 @@ import {PoolId, PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
 import {Currency} from "v4-core/src/types/Currency.sol";
 import {BalanceDelta} from "v4-core/src/types/BalanceDelta.sol";
 import {SwapParams} from "v4-core/src/types/PoolOperation.sol";
+import {BeforeSwapDelta, toBeforeSwapDelta} from "v4-core/src/types/BeforeSwapDelta.sol";
+import {ProtocolFeeLibrary} from "v4-core/src/libraries/ProtocolFeeLibrary.sol";
 import {ICircuitRegistryView, ILatchEvaluator} from "latch/interfaces/ILatch.sol";
 import {FeeCircuitHook} from "./FeeCircuitHook.sol";
 
@@ -30,7 +32,8 @@ import {FeeCircuitHook} from "./FeeCircuitHook.sol";
 ///
 ///         Accounting: afterSwap returns the fee as the hook's unspecified delta (the swapper pays it) and resolves the
 ///         hook's own delta in the same callback, with `take` to the destination or `donate` to in-range LPs.
-///         A destination of address(0) means "in-range LPs".
+///         A destination of address(0) means "in-range LPs". With every destination set to LPs and `token` set to
+///         Currency(0), the hook is generic: any pool may use it, and every pool's route fee goes to that pool's own LPs.
 contract FeeRouteHook is FeeCircuitHook {
     using PoolIdLibrary for PoolKey;
     using StateLibrary for IPoolManager;
@@ -40,7 +43,9 @@ contract FeeRouteHook is FeeCircuitHook {
         Guard guard; // ROUTE_GUARD circuit
         address[4] dests; // address(0) = donate to in-range LPs
         uint16 routeBps; // route fee, basis points of the unspecified amount (<= 1000)
-        Currency token; // the pool's traded token: a swap that outputs it is a buy
+        Currency token; // the traded token (a swap that outputs it is a buy); Currency(0) = generic: a buy acquires currency1
+        uint16 hookFeePips; // hook fee in v4 pips (1e-6) of the swap INPUT, both directions; <= 1000 (v4's protocol-fee cap)
+        address hookFeeRecipient; // the only non-LP recipient; immutable
     }
 
     address public immutable routeSplitNetlist;
@@ -52,14 +57,21 @@ contract FeeRouteHook is FeeCircuitHook {
     address public immutable dest3;
     uint16 public immutable routeBps;
     Currency public immutable token;
+    uint16 public immutable hookFeePips;
+    address public immutable hookFeeRecipient;
+    uint256 internal constant PIPS = 1_000_000;
 
     /// Transient slot carrying the route chosen in beforeSwap (pre-swap facts) to afterSwap.
     uint256 internal constant ROUTE_SLOT = uint256(keccak256("nandout.feeroute.route")) - 1;
+    /// Transient slot carrying the exact-input hook fee from beforeSwap to afterSwap (where it is paid out).
+    uint256 internal constant HOOK_FEE_SLOT = uint256(keccak256("nandout.feeroute.hookfee")) - 1;
 
     event Routed(PoolId indexed id, uint8 route, address dest, Currency currency, uint256 amount);
+    event HookFee(PoolId indexed id, address recipient, Currency currency, uint256 amount);
 
     error BadRouteFee(uint16 routeBps);
     error TokenNotInPool();
+    error BadHookFee(uint16 pips, address recipient);
 
     constructor(
         IPoolManager poolManager_,
@@ -73,6 +85,9 @@ contract FeeRouteHook is FeeCircuitHook {
         RouteConfig memory r
     ) FeeCircuitHook(poolManager_, evaluator_, tapeout, volGuard, depthGuard, fees, t, epochBlocks_) {
         if (r.routeBps == 0 || r.routeBps > 1000) revert BadRouteFee(r.routeBps);
+        if (r.hookFeePips > ProtocolFeeLibrary.MAX_PROTOCOL_FEE || (r.hookFeePips > 0) != (r.hookFeeRecipient != address(0))) {
+            revert BadHookFee(r.hookFeePips, r.hookFeeRecipient);
+        }
         address sp = _snapshot(evaluator_, tapeout, r.split);
         address gp = _snapshot(evaluator_, tapeout, r.guard);
         uint64 tbl;
@@ -87,11 +102,14 @@ contract FeeRouteHook is FeeCircuitHook {
         (dest0, dest1, dest2, dest3) = (r.dests[0], r.dests[1], r.dests[2], r.dests[3]);
         routeBps = r.routeBps;
         token = r.token;
+        hookFeePips = r.hookFeePips;
+        hookFeeRecipient = r.hookFeeRecipient;
     }
 
     function getHookPermissions() public pure override returns (Hooks.Permissions memory p) {
         p.beforeSwap = true;
         p.afterSwap = true;
+        p.beforeSwapReturnDelta = true;
         p.afterSwapReturnDelta = true;
     }
 
@@ -116,12 +134,24 @@ contract FeeRouteHook is FeeCircuitHook {
 
     function _onFacts(PoolKey calldata key, SwapParams calldata params, uint8 facts) internal override {
         bool isBuy;
-        if (Currency.unwrap(key.currency1) == Currency.unwrap(token)) isBuy = params.zeroForOne;
+        if (Currency.unwrap(token) == address(0)) isBuy = params.zeroForOne; // generic: any pool; buy = acquire currency1
+        else if (Currency.unwrap(key.currency1) == Currency.unwrap(token)) isBuy = params.zeroForOne;
         else if (Currency.unwrap(key.currency0) == Currency.unwrap(token)) isBuy = !params.zeroForOne;
         else revert TokenNotInPool();
         uint256 v = uint256(routeOf(routeFactsOf(isBuy, facts))) + 1;
         uint256 slot = ROUTE_SLOT;
         assembly ("memory-safe") { tstore(slot, v) }
+    }
+
+    /// @dev Exact input: the hook fee is taken from the specified input before the swap runs, so the LP fee applies only
+    ///      to the remainder, as v4-core does with its protocol fee (Pool.swap / ProtocolFeeLibrary.calculateSwapFee).
+    function _beforeSwapDelta(PoolKey calldata, SwapParams calldata params) internal override returns (BeforeSwapDelta) {
+        if (hookFeePips == 0 || params.amountSpecified >= 0) return toBeforeSwapDelta(0, 0);
+        uint256 fee = uint256(-params.amountSpecified) * hookFeePips / PIPS;
+        if (fee == 0) return toBeforeSwapDelta(0, 0);
+        uint256 slot = HOOK_FEE_SLOT;
+        assembly ("memory-safe") { tstore(slot, fee) }
+        return toBeforeSwapDelta(int128(int256(fee)), 0);
     }
 
     function afterSwap(address, PoolKey calldata key, SwapParams calldata params, BalanceDelta delta, bytes calldata)
@@ -138,24 +168,48 @@ contract FeeRouteHook is FeeCircuitHook {
         }
         uint8 route = uint8(v - 1); // beforeSwap always runs first for this hook; v == 0 would underflow and revert
 
-        // Fee on the unspecified side (output of exact-in, input of exact-out), as in v4-core's FeeTakingHook.
-        bool specifiedIs0 = (params.amountSpecified < 0 == params.zeroForOne);
+        PoolId id = key.toId();
+        bool exactIn = params.amountSpecified < 0;
+        bool specifiedIs0 = (exactIn == params.zeroForOne);
         (Currency c, int128 amt) = specifiedIs0 ? (key.currency1, delta.amount1()) : (key.currency0, delta.amount0());
         if (amt < 0) amt = -amt;
-        uint256 fee = uint256(uint128(amt)) * routeBps / 10_000;
-        if (fee == 0) return (IHooks.afterSwap.selector, 0);
+        uint256 unspecified = uint256(uint128(amt));
 
-        address dest = destOf(route);
-        PoolId id = key.toId();
-        if (dest == address(0)) {
-            // To in-range LPs. The hook's credit (returned below) pays for the donation, so its net delta is zero.
-            if (poolManager.getLiquidity(id) == 0) return (IHooks.afterSwap.selector, 0);
-            bool is0 = Currency.unwrap(c) == Currency.unwrap(key.currency0);
-            poolManager.donate(key, is0 ? fee : 0, is0 ? 0 : fee, "");
-        } else {
-            poolManager.take(c, dest, fee);
+        // 1. Hook fee, on the input side. Exact input: taken in beforeSwap (read it back). Exact output: the input is the
+        //    unspecified side; gross it up so the fee is hookFeePips of everything the trader pays in.
+        uint256 hookFee;
+        int128 hookDelta;
+        if (exactIn) {
+            uint256 hs = HOOK_FEE_SLOT;
+            assembly ("memory-safe") {
+                hookFee := tload(hs)
+                tstore(hs, 0)
+            }
+        } else if (hookFeePips > 0) {
+            hookFee = unspecified * hookFeePips / (PIPS - hookFeePips);
+            hookDelta = int128(int256(hookFee));
         }
-        emit Routed(id, route, dest, c, fee);
-        return (IHooks.afterSwap.selector, int128(int256(fee)));
+        if (hookFee > 0) {
+            Currency input = params.zeroForOne ? key.currency0 : key.currency1;
+            poolManager.take(input, hookFeeRecipient, hookFee);
+            emit HookFee(id, hookFeeRecipient, input, hookFee);
+        }
+
+        // 2. Route fee, on the unspecified side (as v4-core's FeeTakingHook), sent where the circuit's route says.
+        uint256 fee = unspecified * routeBps / 10_000;
+        if (fee > 0) {
+            address dest = destOf(route);
+            if (dest == address(0)) {
+                // To in-range LPs. The hook's credit pays for the donation, so its net delta is zero.
+                if (poolManager.getLiquidity(id) == 0) return (IHooks.afterSwap.selector, hookDelta);
+                bool is0 = Currency.unwrap(c) == Currency.unwrap(key.currency0);
+                poolManager.donate(key, is0 ? fee : 0, is0 ? 0 : fee, "");
+            } else {
+                poolManager.take(c, dest, fee);
+            }
+            emit Routed(id, route, dest, c, fee);
+            hookDelta += int128(int256(fee));
+        }
+        return (IHooks.afterSwap.selector, hookDelta);
     }
 }

@@ -1,5 +1,10 @@
 # NexusHook: Phase 0 recon
 
+> **Correction (2026-09-28):** the OKB figures derived from gas in this file are **1,000× too high**. 0.02 gwei means
+> 1M gas = 0.00002 OKB, not 0.02 OKB. The measured final deploy costs ≈ 0.022 OKB in total, almost all of it transistor
+> and tape-out fees ([`HOOK.md`](HOOK.md#mainnet-cost-measured-dry-run-of-the-final-feeroutehook-deploy)). Gas units and
+> percentages below are unaffected.
+>
 > **Superseded in part by Phase 1** ([`HOOK.md`](HOOK.md)): live per-swap evaluation was rejected in favour of a
 > table precomputed at registration, MILESTONE was deferred, the Phase 0 `FeeEvaluator`/`BenchHook` benchmark code was
 > replaced by the real `FeeCircuitHook` (which reuses Nandout's deployed LatchEvaluator), and the gas numbers below were

@@ -8,7 +8,7 @@ evm_version = "cancun"
 optimizer = true
 optimizer_runs = 1000000
 via_ir = true
-fs_permissions = [{ access = "read", path = "./test/fixtures" }, { access = "read-write", path = "./bench" }]
+fs_permissions = [{ access = "read", path = "./test/fixtures" }, { access = "read-write", path = "./bench" }, { access = "read-write", path = "./deployments" }]
 remappings = [
   "v4-core/=lib/v4-core/",
   "forge-std/=lib/v4-core/lib/forge-std/src/",
