@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Nandout · served from X Layer</title>
+<meta name="description" content="Nandout: a programmable on-chain decision layer on X Layer. Taped-out TapeOut circuits gate Ignix launches, set Uniswap v4 fee tiers and fix where fees go. This page is stored on X Layer.">
+<style>
+:root{--bg:#0a0a0b;--s1:rgba(255,255,255,.035);--s2:rgba(255,255,255,.06);--line:rgba(255,255,255,.08);--accent:#f4f6f9;--paper:#d3d8de;--dim:#8b929a;--green:#6b9e7d;--greenS:rgba(107,158,125,.14);--amber:#c99a4e;--amberS:rgba(201,154,78,.14)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--paper);font:15px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+main{max-width:920px;margin:0 auto;padding:40px clamp(16px,4vw,32px) 64px}
+a{color:var(--accent)}
+code,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.5px}
+.brand{display:flex;align-items:center;gap:10px;font-size:20px;font-weight:700;color:var(--accent)}
+.eyebrow{display:inline-flex;align-items:center;gap:8px;margin:28px 0 12px;padding:5px 12px 5px 10px;border-radius:999px;background:var(--s2);font-size:13px;color:var(--dim)}
+.eyebrow:before{content:"";width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 0 3px var(--greenS)}
+h1{font-size:clamp(28px,5vw,42px);line-height:1.1;letter-spacing:-.03em;color:var(--accent);font-weight:600;max-width:20ch}
+h2{font-size:17px;color:var(--paper);margin:40px 0 12px;font-weight:600}
+p{margin:10px 0;color:var(--dim)}
+.lede{font-size:17px;max-width:60ch}
+.un{color:var(--green)}.la{color:var(--amber)}
+.card{background:var(--s1);border:1px solid var(--line);border-radius:20px;padding:18px 20px}
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+@media(max-width:720px){.grid{grid-template-columns:1fr}}
+.stat b{display:block;font-size:26px;color:var(--accent);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.stat span{font-size:13px;color:var(--dim)}
+.box{border:1px solid var(--line);border-radius:20px;overflow:hidden;background:var(--s1)}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{text-align:left;font-weight:500;font-size:13px;color:var(--dim);padding:10px 14px;background:var(--s1);border-bottom:1px solid var(--line)}
+td{padding:11px 14px;border-top:1px solid var(--line);vertical-align:top}
+tr:first-child td{border-top:0}
+td.r{text-align:right;font-variant-numeric:tabular-nums}
+.chip{display:inline-block;font-size:12px;padding:2px 9px;border-radius:999px;background:var(--s2);color:var(--dim)}
+.chip.g{background:var(--greenS);color:var(--green)}.chip.a{background:var(--amberS);color:var(--amber)}
+.rule{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;color:var(--dim)}
+.btn{display:inline-block;margin:18px 10px 0 0;padding:10px 18px;border-radius:999px;background:var(--accent);color:#0a0a0b;font-weight:600;text-decoration:none}
+.btn.g{background:transparent;color:var(--paper);border:1px solid var(--line)}
+footer{margin-top:48px;padding-top:18px;border-top:1px solid var(--line);font-size:13px;color:var(--dim)}
+</style>
+</head>
+<body>
+<main>
+<div class="brand">
+<svg width="26" height="26" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="9" fill="#f4f6f9"/><path d="M8 9h7a7 7 0 0 1 0 14H8z" fill="none" stroke="#0a0a0b" stroke-width="2.4" stroke-linejoin="round"/><circle cx="24.2" cy="16" r="2.2" fill="none" stroke="#0a0a0b" stroke-width="2.2"/></svg>
+Nandout
+</div>
+
+<span class="eyebrow">This page is stored on X Layer</span>
+<h1>A programmable on-chain decision layer.</h1>
+<p class="lede">Rules become taped-out TapeOut circuits: NAND netlists, immutable once registered. Consumers measure the world, pack facts into bits and act on the circuit's verdict. Nandout's circuits decide whether capital should enter an Ignix launch (<span class="un">Gate</span>), what a Uniswap v4 swap costs and where that fee goes (<span class="un">NexusHook</span>), and when a creator's locked tokens may be released (<span class="un">Lock</span>).</p>
+<a class="btn" href="https://nandout.xyz">Open the live app</a><a class="btn g" href="https://github.com/davieslennox0/nandout">Source</a>
+
+<h2>Snapshot at block {{BLOCK}} <span class="chip">{{AT}}</span></h2>
+<p>Baked in when this page was written to chain. Live numbers are on nandout.xyz and on-chain via <code>LatchGate.checkMany</code>.</p>
+<div class="grid">
+<div class="card stat"><b>{{LAUNCHES}}</b><span>Ignix launches attested</span></div>
+<div class="card stat"><b>{{GRADUATED}}</b><span>graduated to a pool</span></div>
+<div class="card stat"><b>{{AGENTS}}</b><span>linked to an OKX.AI agent</span></div>
+</div>
+<div class="box" style="margin-top:12px">
+<table>
+<tr><th>Circuit</th><th>Kind</th><th>Rule</th><th class="r">Transistors</th><th class="r">Unlatched</th></tr>
+{{ROWS}}
+</table>
+</div>
+
+<h2>NexusHook: circuit-governed Uniswap v4 fees</h2>
+<p><code>FeeRouteHook</code> is a generic v4 hook: any pool on X Layer may use it. Two circuits pick the LP fee tier (0.05 / 0.30 / 0.60 / 1.00%) from volatility and depth measured against each pool's own baseline. Two more pick where a 5 bps route fee goes, and every route is wired to the pool's in-range LPs. Each circuit's full output was computed once at deploy, so a TapeOut upgrade cannot change the fee or its destination.</p>
+<p><b>Hook fee, disclosed:</b> 1000 pips (0.10%) of the swap input in both directions, the same model and cap as Uniswap's own protocol fee. It is paid to the Nandout deploy wallet <code>0x934d315C0a9C0866D393B722C1805F2B6b20b816</code>, and everything else goes to the pool's LPs. For example, a 1,000-token swap in the 0.30% tier pays 1.000 to the deploy wallet, 2.997 LP fee and a 0.4975 route fee to LPs. No pool is deployed yet: liquidity is capital, not gas.</p>
+
+<h2>Contracts on X Layer (chainId 196), verified on OKLink</h2>
+<div class="box">
+<table>
+<tr><th>Contract</th><th>Address</th></tr>
+<tr><td>LatchGate</td><td class="mono"><a href="https://www.oklink.com/xlayer/address/0x649373f612d278634Ba8656aF53bCA7D8dc0f940">0x649373f612d278634Ba8656aF53bCA7D8dc0f940</a></td></tr>
+<tr><td>LatchLock</td><td class="mono"><a href="https://www.oklink.com/xlayer/address/0xBe9ae981ec742B9053AD802a1D6A2B96E58b67f1">0xBe9ae981ec742B9053AD802a1D6A2B96E58b67f1</a></td></tr>
+<tr><td>LatchFeed</td><td class="mono"><a href="https://www.oklink.com/xlayer/address/0x81Ea55c0d48fB985707eA224dC099Ff3C8f2AD78">0x81Ea55c0d48fB985707eA224dC099Ff3C8f2AD78</a></td></tr>
+<tr><td>LatchEvaluator</td><td class="mono"><a href="https://www.oklink.com/xlayer/address/0x8cA3ecB418962801e64FF1e847a444fAB6352D03">0x8cA3ecB418962801e64FF1e847a444fAB6352D03</a></td></tr>
+<tr><td>FeeRouteHook (NexusHook)</td><td class="mono"><a href="https://www.oklink.com/xlayer/address/0x9553B82Baf7EB83e155b33F003d89Aa1D1b040cc">0x9553B82Baf7EB83e155b33F003d89Aa1D1b040cc</a></td></tr>
+<tr><td>Nandout processor (500,000 transistors @ 0.001 OKB)</td><td class="mono"><a href="https://www.oklink.com/xlayer/address/0x8A60B4A4BCf4066F5E5F9A406fE09c5e4f52a58E">0x8A60B4A4BCf4066F5E5F9A406fE09c5e4f52a58E</a></td></tr>
+</table>
+</div>
+
+<h2>Trust model</h2>
+<div class="box">
+<table>
+<tr><th>Component</th><th>Upgradeable?</th><th>Who can change it</th></tr>
+<tr><td>LatchEvaluator</td><td><span class="chip g">No</span></td><td>Nobody. No storage, no owner, no proxy, view-only. Lock releases and the hook's tables are evaluated here.</td></tr>
+<tr><td>LatchLock, LatchGate</td><td><span class="chip g">No</span></td><td>Nobody. Immutable and ownerless. Funds release only to the beneficiary.</td></tr>
+<tr><td>FeeRouteHook</td><td><span class="chip g">No</span></td><td>Nobody. No owner, no setters. Tiers, thresholds, routes and the hook-fee recipient are fixed at deploy.</td></tr>
+<tr><td>LatchFeed</td><td><span class="chip">No (code)</span></td><td>Owner can only add or remove attestors. LP_PULLED can never be cleared.</td></tr>
+<tr><td>TapeOut factory + beacons</td><td><span class="chip a">Yes</span></td><td>TapeOut's owner (<code>isSealed() == false</code>). Lock releases and hook fees never depend on it.</td></tr>
+<tr><td>DeWEB store serving this page</td><td><span class="chip a">Yes</span></td><td>DeWEB's owner. TapeKit pins the implementation and refuses to read if it changes.</td></tr>
+</table>
+</div>
+
+<p style="margin-top:28px"><b>Lock, honestly:</b> Ignix tokens cannot be transferred before they graduate (<code>CurveOnly()</code>), and most creator wallets hold none of their own token, so locking is a post-graduation feature for the few creators who hold supply.</p>
+
+<footer>
+Served from X Layer by TapeOut DeWEB: circuit #1 (BASIC_SAFETY) of Nandout processor 230, on-chain name <code>1.2.230.tape</code>. Every byte of this file is on chain and checked against its SHA-256 before it is shown. The live app runs at <a href="https://nandout.xyz">nandout.xyz</a>. Contracts keep the Latch names: latch is the mechanism, Nandout is the product.
+</footer>
+</main>
+</body>
+</html>

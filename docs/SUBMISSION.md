@@ -39,7 +39,7 @@ logic viable on hot paths where per-call evaluation is not.
 | Deploy wallet | `0x934d315C0a9C0866D393B722C1805F2B6b20b816` |
 | Live app | https://nandout.xyz |
 | On-chain site (DeWEB) | https://1-2-230.tapekit.org (`1.2.230.tape`) |
-| Demo video | _to be added_ |
+| Demo video | _to be added_ (script: [`DEMO-SCRIPT.md`](DEMO-SCRIPT.md)) |
 
 ## Contracts (X Layer, verified on OKLink)
 
