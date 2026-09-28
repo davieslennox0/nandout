@@ -24,7 +24,7 @@ interface IERC20P {
 /// entering and leaving the PoolManager. Any tax in either direction breaks an equality (or v4 settlement).
 contract IgnixPoolableForkTest is HookForkBase {
     uint160 internal constant ROUTE_FLAGS =
-        uint160(Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG);
+        uint160(Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG);
     uint16 internal constant ROUTE_BPS = 100;
     FeeCircuitHook.Guard internal splitGuard;
     FeeCircuitHook.Guard internal routeGuardC;

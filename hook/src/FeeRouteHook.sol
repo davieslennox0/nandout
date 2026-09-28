@@ -10,7 +10,6 @@ import {PoolId, PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
 import {Currency} from "v4-core/src/types/Currency.sol";
 import {BalanceDelta} from "v4-core/src/types/BalanceDelta.sol";
 import {SwapParams} from "v4-core/src/types/PoolOperation.sol";
-import {BeforeSwapDelta, toBeforeSwapDelta} from "v4-core/src/types/BeforeSwapDelta.sol";
 import {ProtocolFeeLibrary} from "v4-core/src/libraries/ProtocolFeeLibrary.sol";
 import {ICircuitRegistryView, ILatchEvaluator} from "latch/interfaces/ILatch.sol";
 import {FeeCircuitHook} from "./FeeCircuitHook.sol";
@@ -44,7 +43,7 @@ contract FeeRouteHook is FeeCircuitHook {
         address[4] dests; // address(0) = donate to in-range LPs
         uint16 routeBps; // route fee, basis points of the unspecified amount (<= 1000)
         Currency token; // the traded token (a swap that outputs it is a buy); Currency(0) = generic: a buy acquires currency1
-        uint16 hookFeePips; // hook fee in v4 pips (1e-6) of the swap INPUT, both directions; <= 1000 (v4's protocol-fee cap)
+        uint16 hookFeePips; // hook fee in v4 pips (1e-6) of the ACTUAL filled unspecified amount; <= 1000 (v4's protocol-fee cap)
         address hookFeeRecipient; // the only non-LP recipient; immutable
     }
 
@@ -63,8 +62,6 @@ contract FeeRouteHook is FeeCircuitHook {
 
     /// Transient slot carrying the route chosen in beforeSwap (pre-swap facts) to afterSwap.
     uint256 internal constant ROUTE_SLOT = uint256(keccak256("nandout.feeroute.route")) - 1;
-    /// Transient slot carrying the exact-input hook fee from beforeSwap to afterSwap (where it is paid out).
-    uint256 internal constant HOOK_FEE_SLOT = uint256(keccak256("nandout.feeroute.hookfee")) - 1;
 
     event Routed(PoolId indexed id, uint8 route, address dest, Currency currency, uint256 amount);
     event HookFee(PoolId indexed id, address recipient, Currency currency, uint256 amount);
@@ -109,7 +106,6 @@ contract FeeRouteHook is FeeCircuitHook {
     function getHookPermissions() public pure override returns (Hooks.Permissions memory p) {
         p.beforeSwap = true;
         p.afterSwap = true;
-        p.beforeSwapReturnDelta = true;
         p.afterSwapReturnDelta = true;
     }
 
@@ -143,17 +139,6 @@ contract FeeRouteHook is FeeCircuitHook {
         assembly ("memory-safe") { tstore(slot, v) }
     }
 
-    /// @dev Exact input: the hook fee is taken from the specified input before the swap runs, so the LP fee applies only
-    ///      to the remainder, as v4-core does with its protocol fee (Pool.swap / ProtocolFeeLibrary.calculateSwapFee).
-    function _beforeSwapDelta(PoolKey calldata, SwapParams calldata params) internal override returns (BeforeSwapDelta) {
-        if (hookFeePips == 0 || params.amountSpecified >= 0) return toBeforeSwapDelta(0, 0);
-        uint256 fee = uint256(-params.amountSpecified) * hookFeePips / PIPS;
-        if (fee == 0) return toBeforeSwapDelta(0, 0);
-        uint256 slot = HOOK_FEE_SLOT;
-        assembly ("memory-safe") { tstore(slot, fee) }
-        return toBeforeSwapDelta(int128(int256(fee)), 0);
-    }
-
     function afterSwap(address, PoolKey calldata key, SwapParams calldata params, BalanceDelta delta, bytes calldata)
         external
         override
@@ -169,30 +154,20 @@ contract FeeRouteHook is FeeCircuitHook {
         uint8 route = uint8(v - 1); // beforeSwap always runs first for this hook; v == 0 would underflow and revert
 
         PoolId id = key.toId();
-        bool exactIn = params.amountSpecified < 0;
-        bool specifiedIs0 = (exactIn == params.zeroForOne);
+        bool specifiedIs0 = (params.amountSpecified < 0 == params.zeroForOne);
         (Currency c, int128 amt) = specifiedIs0 ? (key.currency1, delta.amount1()) : (key.currency0, delta.amount0());
         if (amt < 0) amt = -amt;
         uint256 unspecified = uint256(uint128(amt));
 
-        // 1. Hook fee, on the input side. Exact input: taken in beforeSwap (read it back). Exact output: the input is the
-        //    unspecified side; gross it up so the fee is hookFeePips of everything the trader pays in.
-        uint256 hookFee;
+        // 1. Hook fee on the ACTUAL filled unspecified amount (output of exact-in, input of exact-out), like v4-core's
+        //    FeeTakingHook. afterSwap can only charge the unspecified side; charging exact-in input upfront in beforeSwap
+        //    overcharged partial fills (the deprecated 0x9553…40cc), so the fee is taken here, after the fill is known.
+        uint256 hookFee = unspecified * hookFeePips / PIPS;
         int128 hookDelta;
-        if (exactIn) {
-            uint256 hs = HOOK_FEE_SLOT;
-            assembly ("memory-safe") {
-                hookFee := tload(hs)
-                tstore(hs, 0)
-            }
-        } else if (hookFeePips > 0) {
-            hookFee = unspecified * hookFeePips / (PIPS - hookFeePips);
-            hookDelta = int128(int256(hookFee));
-        }
         if (hookFee > 0) {
-            Currency input = params.zeroForOne ? key.currency0 : key.currency1;
-            poolManager.take(input, hookFeeRecipient, hookFee);
-            emit HookFee(id, hookFeeRecipient, input, hookFee);
+            poolManager.take(c, hookFeeRecipient, hookFee);
+            emit HookFee(id, hookFeeRecipient, c, hookFee);
+            hookDelta = int128(int256(hookFee));
         }
 
         // 2. Route fee, on the unspecified side (as v4-core's FeeTakingHook), sent where the circuit's route says.

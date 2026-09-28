@@ -32,7 +32,7 @@ contract DeployFeeRoute is Script {
     address constant PROCESSOR = 0x8A60B4A4BCf4066F5E5F9A406fE09c5e4f52a58E;
     address constant CREATE2 = 0x4e59b44847b379578588920cA78FbF26c0B4956C;
     address constant RECIPIENT = 0x934d315C0a9C0866D393B722C1805F2B6b20b816; // Nandout deploy wallet (hook fee)
-    uint160 constant FLAGS = (1 << 7) | (1 << 6) | (1 << 3) | (1 << 2); // beforeSwap, afterSwap, both return-delta bits
+    uint160 constant FLAGS = (1 << 7) | (1 << 6) | (1 << 2); // beforeSwap, afterSwap, afterSwapReturnsDelta
 
     function run() external {
         require(block.chainid == 196, "X Layer only");

@@ -47,7 +47,7 @@ contract FeeRouteForkTest is HookForkBase {
     using StateLibrary for IPoolManager;
 
     uint160 internal constant ROUTE_FLAGS =
-        uint160(Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG);
+        uint160(Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG);
     bytes32 internal constant ROUTED = keccak256("Routed(bytes32,uint8,address,address,uint256)");
     uint16 internal constant ROUTE_BPS = 100; // 1% route fee (large, so every rounding step is visible)
 

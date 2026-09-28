@@ -25,13 +25,13 @@ interface IOwnedPM { function owner() external view returns (address); }
 
 /// @notice The exact configuration proposed for mainnet, on a local fork of X Layer:
 ///         generic token, every route to in-range LPs, route fee 5 bps, hook fee 1000 pips (v4's protocol-fee cap) of the
-///         swap input in both directions, paid to the Nandout deploy wallet; tiers 0.05 / 0.30 / 0.60 / 1.00 %.
+///         ACTUAL filled unspecified amount (FeeTakingHook model), paid to the Nandout deploy wallet; tiers 0.05/0.30/0.60/1.00%.
 contract FeeRouteFinalForkTest is HookForkBase {
     using PoolIdLibrary for PoolKey;
     using StateLibrary for IPoolManager;
 
     uint160 internal constant FLAGS = uint160(
-        Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
+        Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
     );
     address internal constant RECIPIENT = 0x934d315C0a9C0866D393B722C1805F2B6b20b816; // Nandout deploy wallet
     uint16 internal constant ROUTE_BPS = 5;
@@ -63,7 +63,7 @@ contract FeeRouteFinalForkTest is HookForkBase {
 
     function test_finalConfigAndAddressBits() public {
         FeeRouteHook hook = FeeRouteHook(_deployFinal(type(FeeRouteHook).creationCode));
-        assertEq(uint160(address(hook)) & ALL_HOOK_FLAGS, FLAGS, "address encodes exactly beforeSwap/afterSwap + both return-delta bits (0x..CC)");
+        assertEq(uint160(address(hook)) & ALL_HOOK_FLAGS, FLAGS, "address encodes exactly beforeSwap, afterSwap, afterSwapReturnsDelta (0x..C4)");
         assertEq(hook.hookFeePips(), 1000);
         assertEq(hook.hookFeeRecipient(), RECIPIENT);
         assertEq(hook.routeBps(), 5);
@@ -84,12 +84,63 @@ contract FeeRouteFinalForkTest is HookForkBase {
         _expectDeployRevert(r, abi.encodeWithSelector(FeeRouteHook.BadHookFee.selector, uint16(1000), address(0)));
     }
 
-    // ---- the hook fee is v4's protocol fee, exactly ----------------------------------------------------------------
+    // ---- the hook fee is 1000 pips of what actually filled --------------------------------------------------------
 
-    /// Same liquidity, same 0.30% LP fee: our hook at 1000 pips vs. a hookless pool with v4's own protocol fee at 1000 pips.
-    function test_hookFeeEqualsV4ProtocolFeeAtCap_bothDirections() public {
-        ForcedRouteHook hook = ForcedRouteHook(_deployFinal(type(ForcedRouteHook).creationCode));
-        hook.force(4); // DEPTH_THIN -> tier 1 = 0.30%
+    /// Exact input: 1000 pips of the actual output. Exact output: 1000 pips of the actual input. Both directions.
+    function test_hookFeeIsCapOfActualFill_bothModesBothDirections() public {
+        FeeRouteHook hook = FeeRouteHook(_deployFinal(type(FeeRouteHook).creationCode));
+        PoolKey memory key = _pool(address(hook), 1e24);
+        for (uint256 d = 0; d < 2; d++) {
+            bool z = d == 0;
+            (Currency cin, Currency cout) = z ? (key.currency0, key.currency1) : (key.currency1, key.currency0);
+            // exact input -> fee in the output token, on the gross output
+            uint256 rec = _bal(cout, RECIPIENT);
+            uint256 out = _bal(cout, address(this));
+            vm.recordLogs();
+            _swapExactIn(key, z, 1_000e18);
+            (, uint256 routeFee) = _routed(vm.getRecordedLogs());
+            uint256 hookFee = _bal(cout, RECIPIENT) - rec;
+            uint256 gross = _bal(cout, address(this)) - out + hookFee + routeFee;
+            assertEq(hookFee, gross * 1000 / 1_000_000, "exact-in: 1000 pips of the actual output");
+            // exact output -> fee in the input token, on the actual pool input
+            rec = _bal(cin, RECIPIENT);
+            uint256 paid = _bal(cin, address(this));
+            vm.recordLogs();
+            swapRouter.swap(key, SwapParams(z, 100e18, z ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1), PoolSwapTest.TestSettings(false, false), "");
+            (, routeFee) = _routed(vm.getRecordedLogs());
+            hookFee = _bal(cin, RECIPIENT) - rec;
+            uint256 poolIn = paid - _bal(cin, address(this)) - hookFee - routeFee;
+            assertEq(hookFee, poolIn * 1000 / 1_000_000, "exact-out: 1000 pips of the actual input");
+        }
+    }
+
+    /// REGRESSION (deprecated hook 0x9553…40cc charged exact-input fees on the SPECIFIED amount): an exact-input swap with
+    /// a price limit that fills only partly must pay the hook fee on what filled, and must not revert.
+    function test_partialFillPaysHookFeeOnlyOnFilledAmount() public {
+        FeeRouteHook hook = FeeRouteHook(_deployFinal(type(FeeRouteHook).creationCode));
+        PoolKey memory key = _pool(address(hook), 1e24);
+        uint256 me0 = t0.balanceOf(address(this));
+        uint256 me1 = t1.balanceOf(address(this));
+        uint256 rec1 = t1.balanceOf(RECIPIENT);
+        uint256 rec0 = t0.balanceOf(RECIPIENT);
+        vm.recordLogs();
+        // Specify 1e30 of input, limit the price to 100 ticks away: only a small part can fill.
+        swapRouter.swap(key, SwapParams(true, -1e30, TickMath.getSqrtPriceAtTick(-100)), PoolSwapTest.TestSettings(false, false), "");
+        (, uint256 routeFee) = _routed(vm.getRecordedLogs());
+        uint256 paidIn = me0 - t0.balanceOf(address(this));
+        uint256 got = t1.balanceOf(address(this)) - me1;
+        uint256 hookFee = t1.balanceOf(RECIPIENT) - rec1;
+        assertLt(paidIn, 1e30 / 1e6, "partial fill: a tiny fraction of the specified amount was used");
+        assertEq(t0.balanceOf(RECIPIENT), rec0, "no hook fee taken on the unfilled input");
+        assertEq(hookFee, (got + hookFee + routeFee) * 1000 / 1_000_000, "fee = 1000 pips of the actual filled output");
+        emit log_named_decimal_uint("specified input", 1e30, 18);
+        emit log_named_decimal_uint("actually filled input", paidIn, 18);
+        emit log_named_decimal_uint("hook fee (output token), on the filled amount only", hookFee, 18);
+    }
+
+    /// For the record: value of the hook fee vs. v4's own protocol fee at 1000 pips on an identical pool (exact input).
+    function test_hookFeeValueVsV4ProtocolFee() public {
+        FeeRouteHook hook = FeeRouteHook(_deployFinal(type(FeeRouteHook).creationCode));
         PoolKey memory ours = _pool(address(hook), 1e24);
         PoolKey memory ref = PoolKey(Currency.wrap(address(t0)), Currency.wrap(address(t1)), 3000, 60, IHooks(address(0)));
         PM.initialize(ref, TickMath.getSqrtPriceAtTick(0));
@@ -97,46 +148,17 @@ contract FeeRouteFinalForkTest is HookForkBase {
         vm.prank(IOwnedPM(address(PM)).owner());
         IProtocolFees(address(PM)).setProtocolFeeController(address(this));
         IProtocolFees(address(PM)).setProtocolFee(ref, uint24(1000) | (uint24(1000) << 12));
-
-        for (uint256 d = 0; d < 2; d++) {
-            bool z = d == 0;
-            (Currency cin, Currency cout) = z ? (ours.currency0, ours.currency1) : (ours.currency1, ours.currency0);
-            // ours
-            uint256 rec = _bal(cin, RECIPIENT);
-            uint256 out = _bal(cout, address(this));
-            vm.recordLogs();
-            _swapExactIn(ours, z, 1_000e18);
-            (, uint256 routeFee) = _routed(vm.getRecordedLogs());
-            uint256 hookFee = _bal(cin, RECIPIENT) - rec;
-            uint256 outOurs = _bal(cout, address(this)) - out;
-            // reference
-            uint256 acc = IProtocolFees(address(PM)).protocolFeesAccrued(cin);
-            out = _bal(cout, address(this));
-            _swapExactIn(ref, z, 1_000e18);
-            uint256 protoFee = IProtocolFees(address(PM)).protocolFeesAccrued(cin) - acc;
-            uint256 outRef = _bal(cout, address(this)) - out;
-
-            assertEq(hookFee, 1e18, "1000 pips of a 1,000-token input = 1 token");
-            assertEq(hookFee, protoFee, "hook fee == v4 protocol fee at the same setting");
-            assertApproxEqAbs(outOurs + routeFee, outRef, 2, "same LP economics: only the 5 bps route fee differs");
-        }
-    }
-
-    function test_exactOutputHookFeeIsCapOfTotalInput() public {
-        FeeRouteHook hook = FeeRouteHook(_deployFinal(type(FeeRouteHook).creationCode));
-        PoolKey memory key = _pool(address(hook), 1e24);
-        uint256 me0 = t0.balanceOf(address(this));
-        uint256 me1 = t1.balanceOf(address(this));
-        uint256 rec = t0.balanceOf(RECIPIENT);
-        vm.recordLogs();
-        swapRouter.swap(key, SwapParams(true, 100e18, TickMath.MIN_SQRT_PRICE + 1), PoolSwapTest.TestSettings(false, false), "");
-        (, uint256 routeFee) = _routed(vm.getRecordedLogs());
-        uint256 paid = me0 - t0.balanceOf(address(this));
-        uint256 hookFee = t0.balanceOf(RECIPIENT) - rec;
-        uint256 poolIn = paid - hookFee - routeFee;
-        assertEq(t1.balanceOf(address(this)) - me1, 100e18, "exact output delivered in full");
-        assertEq(hookFee, poolIn * 1000 / (1_000_000 - 1000), "hook fee = 1000 pips of (pool input + hook fee)");
-        assertApproxEqAbs(hookFee * 1_000_000 / (poolIn + hookFee), 1000, 1);
+        uint256 rec = t1.balanceOf(RECIPIENT);
+        _swapExactIn(ours, true, 1_000e18);
+        uint256 hookFeeOut = t1.balanceOf(RECIPIENT) - rec;
+        uint256 acc = IProtocolFees(address(PM)).protocolFeesAccrued(ref.currency0);
+        _swapExactIn(ref, true, 1_000e18);
+        uint256 protoFeeIn = IProtocolFees(address(PM)).protocolFeesAccrued(ref.currency0) - acc;
+        emit log_named_decimal_uint("hook fee, output token (1000 pips of actual output)", hookFeeOut, 18);
+        emit log_named_decimal_uint("v4 protocol fee, input token (1000 pips of input)", protoFeeIn, 18);
+        // Same 1000-pip rate; the hook's base is the output (after LP fee and price impact), so it is slightly smaller.
+        assertLt(hookFeeOut, protoFeeIn);
+        assertGt(hookFeeOut, protoFeeIn * 99 / 100);
     }
 
     /// The number to confirm before deploying: a 1,000-token exact-input swap in a pool whose circuit tier is 0.30%.
@@ -149,7 +171,7 @@ contract FeeRouteFinalForkTest is HookForkBase {
         (uint256 fg0, uint256 fg1) = PM.getFeeGrowthGlobals(id);
         uint256 me0 = t0.balanceOf(address(this));
         uint256 me1 = t1.balanceOf(address(this));
-        uint256 rec = t0.balanceOf(RECIPIENT);
+        uint256 rec = t1.balanceOf(RECIPIENT);
         vm.recordLogs();
         _swapExactIn(key, true, 1_000e18);
         Vm.Log[] memory logs = vm.getRecordedLogs();
@@ -160,15 +182,14 @@ contract FeeRouteFinalForkTest is HookForkBase {
         uint256 donated1 = FullMath.mulDiv(fg1b - fg1, liq, FixedPoint128.Q128); // route fee to LPs, in the output token
 
         emit log_named_decimal_uint("trader pays (input token)", me0 - t0.balanceOf(address(this)), 18);
-        emit log_named_decimal_uint("  hook fee -> Nandout deploy wallet (1000 pips of input)", t0.balanceOf(RECIPIENT) - rec, 18);
+        emit log_named_decimal_uint("hook fee -> Nandout deploy wallet (1000 pips of actual output, output token)", t1.balanceOf(RECIPIENT) - rec, 18);
         emit log_named_uint("  LP fee applied by the PoolManager, pips", lpFeeApplied);
-        emit log_named_decimal_uint("  LP fee to in-range LPs (0.30% of the remaining 999)", lpFee0, 18);
+        emit log_named_decimal_uint("  LP fee to in-range LPs (0.30% of the 1,000 input)", lpFee0, 18);
         emit log_named_decimal_uint("route fee -> in-range LPs (5 bps of output, output token)", routeFee, 18);
         emit log_named_decimal_uint("trader receives (output token)", t1.balanceOf(address(this)) - me1, 18);
 
-        assertEq(t0.balanceOf(RECIPIENT) - rec, 1e18);
         assertEq(lpFeeApplied, 3000);
-        assertApproxEqAbs(lpFee0, 2.997e18, 1e6, "0.30% of 999");
+        assertApproxEqAbs(lpFee0, 3e18, 1e6, "0.30% of 1,000");
         assertApproxEqAbs(donated1, routeFee, 1e6);
     }
 
@@ -206,13 +227,13 @@ contract FeeRouteFinalForkTest is HookForkBase {
     // ---- helpers ----------------------------------------------------------------------------------------------------
 
     function _observe(PoolKey memory key, bool z) internal returns (uint24 fee, uint8 route) {
-        uint256 rec = _bal(z ? key.currency0 : key.currency1, RECIPIENT);
+        uint256 rec = _bal(z ? key.currency1 : key.currency0, RECIPIENT);
         vm.recordLogs();
         _swapExactIn(key, z, 1e17);
         Vm.Log[] memory logs = vm.getRecordedLogs();
         fee = _swapEventFee(logs);
         (route,) = _routed(logs);
-        require(_bal(z ? key.currency0 : key.currency1, RECIPIENT) > rec, "hook fee paid");
+        require(_bal(z ? key.currency1 : key.currency0, RECIPIENT) > rec, "hook fee paid");
     }
 
     function _swapExactIn(PoolKey memory key, bool z, uint256 amt) internal {

@@ -78,7 +78,7 @@ contract GasReport is Script {
         FeeRouteHook.RouteConfig memory r = FeeRouteHook.RouteConfig(
             rs, rg, [address(0), address(0), address(0), address(0)], 5, Currency.wrap(address(0)), 1000, 0x934d315C0a9C0866D393B722C1805F2B6b20b816
         );
-        address route = _deploy(abi.encodePacked(type(FeeRouteHook).creationCode, abi.encode(PM, EVALUATOR, TAPEOUT, v, d, fees, t, uint32(60), r)), (1 << 7) | (1 << 6) | (1 << 3) | (1 << 2));
+        address route = _deploy(abi.encodePacked(type(FeeRouteHook).creationCode, abi.encode(PM, EVALUATOR, TAPEOUT, v, d, fees, t, uint32(60), r)), (1 << 7) | (1 << 6) | (1 << 2));
 
         _swaps("plain_static_0.30", _pool(address(0), 3000));
         _swaps("hook_tier_table", _pool(table, LPFeeLibrary.DYNAMIC_FEE_FLAG));
